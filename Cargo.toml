@@ -1,0 +1,19 @@
+[package]
+name = "vyos-crowdsec-bouncer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.86"
+cidr = { version = "0.2.3", features = ["serde"] }
+clap = { version = "4.5.8", features = ["derive", "env"] }
+openssl = { version = "0.10.64", features = ["vendored"] }
+reqwest = { version = "0.12.5", features = ["multipart", "json"] }
+serde = { version = "1.0.203", features = ["derive"] }
+serde_json = "1.0.120"
+
+[build-dependencies]
+paperclip = { version = "0.8", features = ["v2", "codegen"] }
+
+[[bin]]
+name = "vyos-crowdsec-bouncer"
