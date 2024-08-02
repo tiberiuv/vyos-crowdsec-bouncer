@@ -5,15 +5,19 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.86"
-cidr = { version = "0.2.3", features = ["serde"] }
+chrono = { version = "0.4.38", features = ["serde"] }
 clap = { version = "4.5.8", features = ["derive", "env"] }
-openssl = { version = "0.10.64", features = ["vendored"] }
-reqwest = { version = "0.12.5", features = ["multipart", "json"] }
+futures-util = "0.3.30"
+ipnet = { version = "2.9.0", features = ["serde"] }
+iprange = { version = "0.6.7", features = ["serde"] }
+reqwest = { version = "0.12.5", features = ["multipart", "json", "default-tls", "native-tls", "rustls-tls"] }
 serde = { version = "1.0.203", features = ["derive"] }
 serde_json = "1.0.120"
-
-[build-dependencies]
-paperclip = { version = "0.8", features = ["v2", "codegen"] }
+tokio = { version = "1.38.0", features = ["full"] }
+tracing = { version = "0.1.40", features = ["attributes"] }
+tracing-bunyan-formatter = "0.3.9"
+tracing-log = "0.2.0"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
 [[bin]]
 name = "vyos-crowdsec-bouncer"
