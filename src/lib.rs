@@ -8,7 +8,7 @@ pub mod vyos_api;
 use std::sync::Arc;
 use std::time::Duration;
 
-use ::tracing::info;
+use ::tracing::{error, info};
 use blacklist::IpRangeMixed;
 use cli::Cli;
 use crowdsec_lapi::types::DecisionsIpRange;
@@ -16,7 +16,7 @@ use crowdsec_lapi::{CrowdsecLAPI, CrowdsecLapiClient};
 use vyos_api::{update_firewall, VyosApi, VyosClient};
 
 use self::blacklist::{Blacklist, BlacklistCache};
-use self::utils::inspect_err;
+use self::utils::retry_op;
 
 pub struct App {
     lapi: Arc<CrowdsecLapiClient>,
@@ -36,7 +36,7 @@ impl App {
     }
 }
 
-pub async fn store_blacklist(app: &App) -> Result<(), anyhow::Error> {
+pub async fn store_existing_blacklist(app: &App) -> Result<(), anyhow::Error> {
     let existing_networks = (*app.vyos)
         .retrieve_firewall_network_groups(&app.cli.firewall_group)
         .await?;
@@ -55,7 +55,7 @@ pub async fn do_iteration(
     let new_decisions = app.lapi.stream_decisions(startup).await.expect("fail");
 
     if startup {
-        store_blacklist(app).await?;
+        store_existing_blacklist(app).await?;
     }
 
     let blacklist = app.blacklist.load();
@@ -72,7 +72,7 @@ pub async fn do_iteration(
     )
     .await
     {
-        inspect_err("Failed to update firewall", err);
+        error!(msg = "Failed to update firewall", ?err);
     } else {
         let new_blacklist = app
             .blacklist
@@ -90,19 +90,11 @@ pub async fn main_loop(app: App) -> Result<(), anyhow::Error> {
     info!("Starting main loop, fetching decisions...");
     let trusted_ips = IpRangeMixed::from_nets(app.cli.trusted_ips.clone().unwrap_or_default());
 
-    let mut retries = 5;
-    while retries != 0 {
-        if let Err(err) = do_iteration(&app, true, &trusted_ips).await {
-            inspect_err("Failed iteration", err);
-        };
-        retries -= 1;
-    }
+    retry_op(5, || do_iteration(&app, true, &trusted_ips)).await?;
 
     loop {
         tokio::time::sleep(Duration::from_secs(app.cli.update_frequency_secs)).await;
 
-        if let Err(err) = do_iteration(&app, false, &trusted_ips).await {
-            inspect_err("Failed iterator", err);
-        }
+        retry_op(10, || do_iteration(&app, true, &trusted_ips)).await?
     }
 }
