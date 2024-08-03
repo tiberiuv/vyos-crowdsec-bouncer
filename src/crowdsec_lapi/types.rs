@@ -109,8 +109,6 @@ impl From<DecisionsResponse> for DecisionsIpRange {
         let to_add: Vec<_> = to_add.into_iter().map(|ip| ip.unwrap()).collect();
         dbg!(&errors);
 
-        let new = IpRangeMixed::from_nets(to_add);
-
         let (to_remove, errors): (Vec<_>, Vec<_>) = value
             .deleted
             .unwrap_or_default()
@@ -120,9 +118,10 @@ impl From<DecisionsResponse> for DecisionsIpRange {
         let to_remove: Vec<_> = to_remove.into_iter().map(|ip| ip.unwrap()).collect();
         dbg!(&errors);
 
-        let deleted = IpRangeMixed::from_nets(to_remove);
-
-        Self { new, deleted }
+        Self {
+            new: IpRangeMixed::from(to_add),
+            deleted: IpRangeMixed::from(to_remove),
+        }
     }
 }
 

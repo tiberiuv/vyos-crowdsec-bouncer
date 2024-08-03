@@ -2,9 +2,10 @@ use clap::Parser;
 use tracing::info;
 use vyos_crowdsec_bouncer::cli::Cli;
 use vyos_crowdsec_bouncer::crowdsec_lapi::CrowdsecLapiClient;
+use vyos_crowdsec_bouncer::main_loop::main_loop;
 use vyos_crowdsec_bouncer::tracing::{get_subscriber, init_subscriber};
 use vyos_crowdsec_bouncer::vyos_api::VyosClient;
-use vyos_crowdsec_bouncer::{main_loop, App};
+use vyos_crowdsec_bouncer::App;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
