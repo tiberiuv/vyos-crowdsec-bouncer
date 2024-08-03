@@ -1,10 +1,12 @@
+use arc_swap::ArcSwap;
 use ipnet::{IpNet, Ipv4Net, Ipv6Net};
 use iprange::IpRange;
 use std::net::IpAddr;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Default)]
 pub struct Blacklist {
-    ip_ranges: IpRangeMixed,
+    pub ip_ranges: IpRangeMixed,
 }
 
 impl Blacklist {
@@ -20,6 +22,23 @@ impl Blacklist {
         Self {
             ip_ranges: self.ip_ranges.merge(other),
         }
+    }
+    pub fn interset(&self, other: &IpRangeMixed) -> Self {
+        Self {
+            ip_ranges: self.ip_ranges.intersect(other),
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct BlacklistCache(pub ArcSwap<Blacklist>);
+
+impl BlacklistCache {
+    pub fn store(&self, blacklist: Blacklist) {
+        self.0.store(Arc::new(blacklist));
+    }
+    pub fn load(&self) -> Arc<Blacklist> {
+        self.0.load_full()
     }
 }
 
@@ -46,7 +65,7 @@ impl IpRangeMixed {
         }
     }
 
-    pub fn into_ips(self) -> Vec<IpAddr> {
+    pub fn into_ips(&self) -> Vec<IpAddr> {
         self.v4
             .iter()
             .flat_map(|net| net.hosts())
@@ -55,7 +74,7 @@ impl IpRangeMixed {
             .collect()
     }
 
-    pub fn into_nets(self) -> Vec<IpNet> {
+    pub fn into_nets(&self) -> Vec<IpNet> {
         self.v4
             .iter()
             .map(IpNet::V4)
@@ -74,6 +93,12 @@ impl IpRangeMixed {
         Self {
             v4: self.v4.merge(&other.v4),
             v6: self.v6.merge(&other.v6),
+        }
+    }
+    pub fn intersect(&self, other: &IpRangeMixed) -> Self {
+        Self {
+            v4: self.v4.intersect(&other.v4),
+            v6: self.v6.intersect(&other.v6),
         }
     }
 }

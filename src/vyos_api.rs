@@ -15,7 +15,7 @@ use crate::crowdsec_lapi::types::DecisionsIpRange;
 #[instrument(skip(vyos_api, decisions_ip_range))]
 pub async fn update_firewall(
     vyos_api: &VyosClient,
-    decisions_ip_range: DecisionsIpRange,
+    decisions_ip_range: &DecisionsIpRange,
     firewall_group: &str,
     timeout: Option<Duration>,
 ) -> Result<(), anyhow::Error> {

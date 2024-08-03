@@ -142,6 +142,15 @@ impl DecisionsIpRange {
             deleted: self.deleted,
         }
     }
+    pub fn filter_deleted(self, filter: &IpRangeMixed) -> Self {
+        Self {
+            new: IpRangeMixed {
+                v4: self.deleted.v4.intersect(&filter.v4),
+                v6: self.deleted.v6.intersect(&filter.v6),
+            },
+            deleted: self.deleted,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -161,14 +170,14 @@ impl DecisionsIpRange {
         self.new.is_empty() && self.deleted.is_empty()
     }
 
-    pub fn into_ips(self) -> DecisionsIps {
+    pub fn into_ips(&self) -> DecisionsIps {
         DecisionsIps {
             new: self.new.into_ips(),
             deleted: self.deleted.into_ips(),
         }
     }
 
-    pub fn into_nets(self) -> DecisionsNets {
+    pub fn into_nets(&self) -> DecisionsNets {
         DecisionsNets {
             new: self.new.into_nets(),
             deleted: self.deleted.into_nets(),
