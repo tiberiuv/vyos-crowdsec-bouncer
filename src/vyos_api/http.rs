@@ -63,12 +63,7 @@ impl VyosClient {
             req
         };
 
-        let before = tokio::time::Instant::now();
-
         let resp = req.send().await?;
-
-        let after = before.elapsed();
-        info!("Request to VYOS took {} sec", after.as_secs());
 
         match resp.error_for_status_ref() {
             Ok(_) => (),
@@ -113,14 +108,16 @@ impl VyosApi for VyosClient {
                 Err(err) => return Err(err),
             }
         }
-        self.send::<serde_json::Value, _>(
-            "config-file",
-            VyosSaveCommand {
-                op: VyosSaveOperation::Save,
-            },
-            timeout,
-        )
-        .await?;
+        if save {
+            self.send::<serde_json::Value, _>(
+                "config-file",
+                VyosSaveCommand {
+                    op: VyosSaveOperation::Save,
+                },
+                timeout,
+            )
+            .await?;
+        }
 
         Ok(())
     }
