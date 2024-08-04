@@ -83,6 +83,7 @@ pub struct DecisionsOptions {
     origins: Option<String>,
 }
 
+const DEFAULT_DECISION_ORIGINS: [Origin; 3] = [Origin::Crowdsec, Origin::Lists, Origin::Cscli];
 impl CrowdsecLAPI for CrowdsecLapiClient {
     #[instrument(skip(self))]
     async fn stream_decisions(
@@ -96,11 +97,7 @@ impl CrowdsecLAPI for CrowdsecLapiClient {
                 let opts = DecisionsOptions {
                     startup: Some(true),
                     type_: Some(DecisionType::Ban),
-                    origins: Some(
-                        [Origin::Crowdsec, Origin::Lists]
-                            .map(|o| o.to_string())
-                            .join(","),
-                    ),
+                    origins: Some(DEFAULT_DECISION_ORIGINS.map(|o| o.to_string()).join(",")),
                 };
                 builder.query(&opts)
             })
