@@ -95,7 +95,7 @@ impl CrowdsecLAPI for CrowdsecLapiClient {
         let resp = self
             .get::<DecisionsResponse>(path, |builder| {
                 let opts = DecisionsOptions {
-                    startup: Some(true),
+                    startup: Some(pull_history),
                     type_: Some(DecisionType::Ban),
                     origins: Some(DEFAULT_DECISION_ORIGINS.map(|o| o.to_string()).join(",")),
                 };
