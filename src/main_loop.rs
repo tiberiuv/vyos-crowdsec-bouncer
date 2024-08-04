@@ -3,7 +3,7 @@ use tracing::{error, info};
 
 use crate::blacklist::IpRangeMixed;
 use crate::crowdsec_lapi::types::DecisionsIpRange;
-use crate::crowdsec_lapi::CrowdsecLAPI;
+use crate::crowdsec_lapi::{CrowdsecLAPI, DecisionsOptions, DEFAULT_DECISION_ORIGINS};
 use crate::utils::retry_op;
 use crate::vyos_api::{update_firewall, VyosApi};
 use crate::App;
@@ -21,13 +21,14 @@ pub async fn store_existing_blacklist(app: &App) -> Result<(), anyhow::Error> {
 
 pub async fn do_iteration(
     app: &App,
-    startup: bool,
     trusted_ips: &IpRangeMixed,
+    decision_options: &DecisionsOptions,
 ) -> Result<(), anyhow::Error> {
     info!("Fetching decisions");
-    let new_decisions = app.lapi.stream_decisions(startup).await.expect("fail");
 
-    if startup {
+    let new_decisions = app.lapi.stream_decisions(decision_options).await?;
+
+    if decision_options.get_startup() {
         store_existing_blacklist(app).await?;
     }
 
@@ -65,12 +66,14 @@ pub async fn do_iteration(
 pub async fn main_loop(app: App) -> Result<(), anyhow::Error> {
     info!("Starting main loop, fetching decisions...");
     let trusted_ips = IpRangeMixed::from(app.cli.trusted_ips.clone().unwrap_or_default());
+    let mut decisions_options = DecisionsOptions::new(&DEFAULT_DECISION_ORIGINS, true);
 
-    retry_op(5, || do_iteration(&app, true, &trusted_ips)).await?;
+    retry_op(5, || do_iteration(&app, &trusted_ips, &decisions_options)).await?;
 
+    decisions_options.set_startup(false);
     loop {
         tokio::time::sleep(Duration::from_secs(app.cli.update_frequency_secs)).await;
 
-        retry_op(10, || do_iteration(&app, false, &trusted_ips)).await?
+        retry_op(10, || do_iteration(&app, &trusted_ips, &decisions_options)).await?
     }
 }

@@ -14,9 +14,9 @@ pub fn read_file(path: &Path) -> Result<Vec<u8>, io::Error> {
     Ok(buf)
 }
 
-fn exponential_backoff(retries: u64, max: u64) -> Duration {
+fn exponential_backoff(retries: u64, cap: u64) -> Duration {
     let jitter = random::<u64>() * 5;
-    Duration::from_millis(u64::max(max, ((2 ^ retries) * 25) + jitter))
+    Duration::from_millis(u64::min(cap, ((2 ^ retries) * 25) + jitter))
 }
 
 pub async fn retry_op<Fut, T, E, F>(retries: u64, f: F) -> Result<T, E>
@@ -25,15 +25,15 @@ where
     Fut: Future<Output = Result<T, E>>,
     F: Fn() -> Fut,
 {
-    let mut retries = retries;
+    let mut current_retries = 0;
     loop {
         let result = f().await;
         match result {
             Ok(t) => return Ok(t),
-            Err(err) if retries < 5 => {
+            Err(err) if current_retries < retries => {
                 tracing::error!(msg = "Failed iteration", ?err);
-                tokio::time::sleep(exponential_backoff(retries, 1000)).await;
-                retries += 1;
+                tokio::time::sleep(exponential_backoff(current_retries, 1000)).await;
+                current_retries += 1;
             }
             Err(err) => {
                 tracing::error!("Ran out of retires");
