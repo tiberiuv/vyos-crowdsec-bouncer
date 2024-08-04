@@ -26,11 +26,7 @@ pub async fn do_iteration(
 ) -> Result<(), anyhow::Error> {
     info!("Fetching decisions");
 
-    let new_decisions = app
-        .lapi
-        .stream_decisions(decision_options)
-        .await
-        .expect("fail");
+    let new_decisions = app.lapi.stream_decisions(decision_options).await?;
 
     if decision_options.get_startup() {
         store_existing_blacklist(app).await?;
