@@ -5,7 +5,7 @@ use ipnet::IpNet;
 use reqwest::multipart::Form;
 use reqwest::{Client, StatusCode, Url};
 use serde::{de::DeserializeOwned, Serialize};
-use tracing::{info, instrument};
+use tracing::instrument;
 
 use super::interface::VyosApi;
 use super::types::{
@@ -18,7 +18,6 @@ pub struct VyosClient {
     client: Client,
     host: Url,
     apikey: String,
-    retries: u8,
 }
 
 impl VyosClient {
@@ -34,7 +33,6 @@ impl VyosClient {
             client,
             host,
             apikey,
-            retries: 5,
         }
     }
 }

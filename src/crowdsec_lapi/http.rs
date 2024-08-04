@@ -67,7 +67,7 @@ impl CrowdsecLapiClient {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
 #[allow(dead_code)]
 enum DecisionType {
@@ -75,36 +75,55 @@ enum DecisionType {
     Captcha,
 }
 
-#[derive(Serialize, Default)]
+#[derive(Serialize, Default, Debug)]
 pub struct DecisionsOptions {
-    startup: Option<bool>,
+    startup: bool,
     #[serde(rename = "type")]
     type_: Option<DecisionType>,
     origins: Option<String>,
 }
 
-const DEFAULT_DECISION_ORIGINS: [Origin; 3] = [Origin::Crowdsec, Origin::Lists, Origin::Cscli];
+impl DecisionsOptions {
+    pub fn new(origins: &[Origin], startup: bool) -> Self {
+        let origins = origins
+            .iter()
+            .map(|o| o.to_string())
+            .collect::<Vec<String>>()
+            .join(",");
+        Self {
+            startup,
+            type_: Some(DecisionType::Ban),
+            origins: Some(origins),
+        }
+    }
+
+    pub fn set_startup(&mut self, startup: bool) {
+        self.startup = startup;
+    }
+
+    pub fn get_startup(&self) -> bool {
+        self.startup
+    }
+}
+
+pub const DEFAULT_DECISION_ORIGINS: [Origin; 3] = [Origin::Crowdsec, Origin::Lists, Origin::Cscli];
 impl CrowdsecLAPI for CrowdsecLapiClient {
     #[instrument(skip(self))]
     async fn stream_decisions(
         &self,
-        pull_history: bool,
+        decision_options: &DecisionsOptions,
     ) -> Result<DecisionsResponse, anyhow::Error> {
         let path = "/v1/decisions/stream";
 
         let resp = self
-            .get::<DecisionsResponse>(path, |builder| {
-                let opts = DecisionsOptions {
-                    startup: Some(pull_history),
-                    type_: Some(DecisionType::Ban),
-                    origins: Some(DEFAULT_DECISION_ORIGINS.map(|o| o.to_string()).join(",")),
-                };
-                builder.query(&opts)
-            })
+            .get::<DecisionsResponse>(path, |builder| builder.query(&decision_options))
             .await?;
         let added = resp.new.as_ref().map(Vec::len).unwrap_or_default();
         let deleted = resp.deleted.as_ref().map(Vec::len).unwrap_or_default();
-        info!(msg = "Retrieved decisions", added, deleted, pull_history);
+        info!(
+            msg = "Retrieved decisions",
+            added, deleted, decision_options.startup
+        );
 
         Ok(resp)
     }
