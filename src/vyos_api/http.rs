@@ -87,19 +87,21 @@ impl VyosApi for VyosClient {
         timeout: Option<Duration>,
         save: bool,
     ) -> Result<(), anyhow::Error> {
-        self.send::<serde_json::Value, _>("/configure", commands, timeout)
-            .await?;
+        let serialized = serde_json::to_value(commands)?;
         if save {
-            self.send::<serde_json::Value, _>(
-                "config-file",
-                VyosSaveCommand {
-                    op: VyosSaveOperation::Save,
-                },
-                timeout,
-            )
-            .await?;
+            match serialized {
+                serde_json::Value::Array(mut v) => v.push(
+                    serde_json::to_value(VyosSaveCommand {
+                        op: VyosSaveOperation::Save,
+                    })
+                    .expect("can serialize save command"),
+                ),
+                _ => panic!("invalid commands"),
+            }
         }
 
+        self.send::<serde_json::Value, _>("/configure", commands, timeout)
+            .await?;
         Ok(())
     }
     #[instrument(skip(self))]
