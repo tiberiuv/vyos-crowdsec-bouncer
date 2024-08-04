@@ -89,6 +89,8 @@ impl VyosApi for VyosClient {
         save: bool,
     ) -> Result<(), anyhow::Error> {
         let mut retry = self.retries;
+
+
         loop {
             info!("Setting firewall groups | commands {}", commands.len());
             match self
