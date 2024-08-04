@@ -1,5 +1,5 @@
-use ::tracing::{error, info};
 use std::time::Duration;
+use tracing::{error, info};
 
 use crate::blacklist::{Blacklist, IpRangeMixed};
 use crate::crowdsec_lapi::types::DecisionsIpRange;

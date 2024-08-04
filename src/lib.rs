@@ -2,7 +2,7 @@ pub mod blacklist;
 pub mod cli;
 pub mod crowdsec_lapi;
 pub mod main_loop;
-pub mod tracing;
+pub mod tracing_setup;
 pub mod utils;
 pub mod vyos_api;
 
