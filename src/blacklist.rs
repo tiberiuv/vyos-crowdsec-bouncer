@@ -4,40 +4,14 @@ use iprange::IpRange;
 use std::net::IpAddr;
 use std::sync::Arc;
 
-#[derive(Debug, Clone, Default)]
-pub struct Blacklist {
-    pub ip_ranges: IpRangeMixed,
-}
-
-impl Blacklist {
-    pub fn new(ip_ranges: IpRangeMixed) -> Self {
-        Self { ip_ranges }
-    }
-    pub fn exclude(&self, other: &IpRangeMixed) -> Self {
-        Self {
-            ip_ranges: self.ip_ranges.exclude(other),
-        }
-    }
-    pub fn merge(&self, other: &IpRangeMixed) -> Self {
-        Self {
-            ip_ranges: self.ip_ranges.merge(other),
-        }
-    }
-    pub fn interset(&self, other: &IpRangeMixed) -> Self {
-        Self {
-            ip_ranges: self.ip_ranges.intersect(other),
-        }
-    }
-}
-
 #[derive(Debug, Default)]
-pub struct BlacklistCache(pub ArcSwap<Blacklist>);
+pub struct BlacklistCache(pub ArcSwap<IpRangeMixed>);
 
 impl BlacklistCache {
-    pub fn store(&self, blacklist: Blacklist) {
+    pub fn store(&self, blacklist: IpRangeMixed) {
         self.0.store(Arc::new(blacklist));
     }
-    pub fn load(&self) -> Arc<Blacklist> {
+    pub fn load(&self) -> Arc<IpRangeMixed> {
         self.0.load_full()
     }
 }
