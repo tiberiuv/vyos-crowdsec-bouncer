@@ -9,7 +9,8 @@ use crate::vyos_api::{update_firewall, VyosApi};
 use crate::App;
 
 pub async fn store_existing_blacklist(app: &App) -> Result<(), anyhow::Error> {
-    let existing_networks = (*app.vyos)
+    let existing_networks = app
+        .vyos
         .retrieve_firewall_network_groups(&app.cli.firewall_group)
         .await?;
 
