@@ -1,12 +1,11 @@
-name: Dev builds
+name: release
 
 permissions:
   contents: write
 
 on:
   push:
-    branches:
-      - master
+    branches: [master]
 
 jobs:
   build_and_push:

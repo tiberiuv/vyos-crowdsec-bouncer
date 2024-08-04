@@ -1,0 +1,21 @@
+name: lints
+
+permissions:
+  contents: write
+
+on:
+  pull_request:
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: fmt
+        run: cargo fmt --all --check
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: clippy
+        run: cargo clippy --all-features
