@@ -13,7 +13,7 @@ pub struct Cli {
     #[arg(long, env, num_args = 1..)]
     pub trusted_ips: Option<Vec<IpNet>>,
 
-    #[arg(long, env = "UPDATE_FREQUENCY_SECS", default_value = "10")]
+    #[arg(long, env = "UPDATE_FREQUENCY_SECS", default_value = "60")]
     pub update_frequency_secs: u64,
 
     #[arg(long, env = "VYOS_APIKEY")]
