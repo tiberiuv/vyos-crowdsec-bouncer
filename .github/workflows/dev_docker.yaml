@@ -11,6 +11,8 @@ on:
 jobs:
   build_and_push:
     runs-on: ubuntu-latest
+    env: 
+      REPOSITORY: ${{ github.repository }}
     steps:
       - uses: actions/checkout@v4
 
@@ -22,7 +24,7 @@ jobs:
         uses: docker/metadata-action@v4
         id: meta
         with:
-          images: tiberiuv/vyos-crowdsec-bouncer
+          images: ${{ env.REPOSITORY }}
           tags: |
             type=pep440,pattern={{version}}
             type=raw,value=latest,enable={{is_default_branch}}
@@ -66,3 +68,4 @@ jobs:
           tags: ghcr.io/${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64
+          build-args: REPOSITORY=${{ env.REPOSITORY }}
