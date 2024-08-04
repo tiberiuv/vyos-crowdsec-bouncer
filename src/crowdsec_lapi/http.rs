@@ -107,7 +107,7 @@ impl CrowdsecLAPI for CrowdsecLapiClient {
             .await?;
         let added = resp.new.as_ref().map(Vec::len).unwrap_or_default();
         let deleted = resp.deleted.as_ref().map(Vec::len).unwrap_or_default();
-        info!(msg = "Retrieved decisions", added, deleted, pull_history,);
+        info!(msg = "Retrieved decisions", added, deleted, pull_history);
 
         Ok(resp)
     }

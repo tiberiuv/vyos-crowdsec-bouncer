@@ -67,6 +67,6 @@ pub async fn main_loop(app: App) -> Result<(), anyhow::Error> {
     loop {
         tokio::time::sleep(Duration::from_secs(app.cli.update_frequency_secs)).await;
 
-        retry_op(10, || do_iteration(&app, true, &trusted_ips)).await?
+        retry_op(10, || do_iteration(&app, false, &trusted_ips)).await?
     }
 }
