@@ -9,6 +9,8 @@ pub struct BlacklistCache(pub ArcSwap<IpRangeMixed>);
 
 impl BlacklistCache {
     pub fn store(&self, blacklist: IpRangeMixed) {
+        let mut blacklist = blacklist;
+        blacklist.simplify();
         self.0.store(Arc::new(blacklist));
     }
     pub fn load(&self) -> Arc<IpRangeMixed> {
@@ -38,6 +40,11 @@ impl From<Vec<IpNet>> for IpRangeMixed {
 impl IpRangeMixed {
     pub fn is_empty(&self) -> bool {
         self.v4.is_empty() && self.v6.is_empty()
+    }
+
+    pub fn simplify(&mut self) {
+        self.v4.simplify();
+        self.v6.simplify();
     }
 
     pub fn into_ips(&self) -> Vec<IpAddr> {
