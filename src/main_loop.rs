@@ -1,7 +1,7 @@
 use std::time::Duration;
 use tracing::{error, info};
 
-use crate::blacklist::{Blacklist, IpRangeMixed};
+use crate::blacklist::IpRangeMixed;
 use crate::crowdsec_lapi::types::DecisionsIpRange;
 use crate::crowdsec_lapi::CrowdsecLAPI;
 use crate::utils::retry_op;
@@ -13,7 +13,7 @@ pub async fn store_existing_blacklist(app: &App) -> Result<(), anyhow::Error> {
         .retrieve_firewall_network_groups(&app.cli.firewall_group)
         .await?;
 
-    let blacklist = Blacklist::new(IpRangeMixed::from(existing_networks.data));
+    let blacklist = IpRangeMixed::from(existing_networks.data);
     app.blacklist.store(blacklist);
     Ok(())
 }
@@ -33,8 +33,8 @@ pub async fn do_iteration(
     let blacklist = app.blacklist.load();
     let decision_ips = DecisionsIpRange::from(new_decisions)
         .filter_new(trusted_ips)
-        .filter_new(&blacklist.as_ref().ip_ranges)
-        .filter_deleted(&blacklist.as_ref().ip_ranges);
+        .filter_new(blacklist.as_ref())
+        .filter_deleted(blacklist.as_ref());
 
     if let Err(err) = update_firewall(
         &app.vyos,
@@ -50,10 +50,9 @@ pub async fn do_iteration(
             .blacklist
             .load()
             .as_ref()
-            .ip_ranges
             .merge(&decision_ips.new)
             .exclude(&decision_ips.deleted);
-        app.blacklist.store(Blacklist::new(new_blacklist))
+        app.blacklist.store(new_blacklist)
     };
     Ok(())
 }
