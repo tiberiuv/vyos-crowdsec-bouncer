@@ -83,31 +83,12 @@ impl VyosApi for VyosClient {
     #[instrument(skip(self, commands, timeout))]
     async fn set_firewall_groups(
         &self,
-        group_name: &str,
         commands: &[VyosConfigCommand],
         timeout: Option<Duration>,
         save: bool,
     ) -> Result<(), anyhow::Error> {
-        let mut retry = self.retries;
-        loop {
-            info!("Setting firewall groups | commands {}", commands.len());
-            match self
-                .send::<serde_json::Value, _>("/configure", commands, timeout)
-                .await
-            {
-                Ok(_) => break,
-                Err(err) if retry > 0 => {
-                    retry -= 1;
-
-                    info!(
-                        batch = ?commands.iter().map(|x| x.as_log_value()).collect::<Vec<_>>(),
-                        ?err
-                    );
-                    info!(msg = "Request failed retrying !", retry = 5 - retry)
-                }
-                Err(err) => return Err(err),
-            }
-        }
+        self.send::<serde_json::Value, _>("/configure", commands, timeout)
+            .await?;
         if save {
             self.send::<serde_json::Value, _>(
                 "config-file",

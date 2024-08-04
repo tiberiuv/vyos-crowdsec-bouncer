@@ -10,7 +10,6 @@ use super::types::{IpSet, VyosCommandResponse, VyosConfigCommand};
 pub trait VyosApi {
     async fn set_firewall_groups(
         &self,
-        group_name: &str,
         commands: &[VyosConfigCommand],
         timeout: Option<Duration>,
         save: bool,

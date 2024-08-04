@@ -37,24 +37,28 @@ pub async fn do_iteration(
         .filter_new(blacklist.as_ref())
         .filter_deleted(blacklist.as_ref());
 
-    if let Err(err) = update_firewall(
-        &app.vyos,
-        &decision_ips,
-        &app.cli.firewall_group,
-        Some(Duration::from_secs(60 * 5)),
-    )
-    .await
-    {
-        error!(msg = "Failed to update firewall", ?err);
+    if !decision_ips.is_empty() {
+        if let Err(err) = update_firewall(
+            &app.vyos,
+            &decision_ips,
+            &app.cli.firewall_group,
+            Some(Duration::from_secs(60 * 5)),
+        )
+        .await
+        {
+            error!(msg = "Failed to update firewall", ?err);
+        } else {
+            let new_blacklist = app
+                .blacklist
+                .load()
+                .as_ref()
+                .merge(&decision_ips.new)
+                .exclude(&decision_ips.deleted);
+            app.blacklist.store(new_blacklist)
+        };
     } else {
-        let new_blacklist = app
-            .blacklist
-            .load()
-            .as_ref()
-            .merge(&decision_ips.new)
-            .exclude(&decision_ips.deleted);
-        app.blacklist.store(new_blacklist)
-    };
+        info!("No new decisions to add!");
+    }
     Ok(())
 }
 
