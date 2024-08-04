@@ -61,6 +61,6 @@ jobs:
           cache-from: type=gha,scope=base
           cache-to: type=gha,scope=base,mode=max
           push: ${{ github.ref == 'refs/heads/master' }}
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: ghcr.io/${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64
