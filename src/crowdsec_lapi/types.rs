@@ -6,6 +6,7 @@ use chrono::{DateTime, Utc};
 use ipnet::{IpNet, Ipv4Net, Ipv6Net};
 use reqwest::{Certificate, Identity};
 use serde::{Deserialize, Serialize};
+use tracing::error;
 
 use crate::blacklist::IpRangeMixed;
 use crate::cli::ClientCerts;
@@ -98,29 +99,23 @@ pub struct DecisionsResponse {
     pub deleted: Option<Vec<Decision>>,
 }
 
+fn parse_crowdsec_decisions(decisions: Option<Vec<Decision>>) -> Vec<IpNet> {
+    let (to_add, errors): (Vec<_>, Vec<_>) = decisions
+        .unwrap_or_default()
+        .iter()
+        .map(Decision::try_into_net)
+        .partition(|x| x.is_ok());
+    if !errors.is_empty() {
+        let errors: Vec<anyhow::Error> = errors.into_iter().map(|ip| ip.unwrap_err()).collect();
+        error!(msg = "Error parsing ips from crowdsec decisions", ?errors);
+    }
+    to_add.into_iter().map(|ip| ip.unwrap()).collect()
+}
 impl From<DecisionsResponse> for DecisionsIpRange {
     fn from(value: DecisionsResponse) -> Self {
-        let (to_add, errors): (Vec<_>, Vec<_>) = value
-            .new
-            .unwrap_or_default()
-            .iter()
-            .map(Decision::try_into_net)
-            .partition(|x| x.is_ok());
-        let to_add: Vec<_> = to_add.into_iter().map(|ip| ip.unwrap()).collect();
-        dbg!(&errors);
-
-        let (to_remove, errors): (Vec<_>, Vec<_>) = value
-            .deleted
-            .unwrap_or_default()
-            .iter()
-            .map(Decision::try_into_net)
-            .partition(|x| x.is_ok());
-        let to_remove: Vec<_> = to_remove.into_iter().map(|ip| ip.unwrap()).collect();
-        dbg!(&errors);
-
         Self {
-            new: IpRangeMixed::from(to_add),
-            deleted: IpRangeMixed::from(to_remove),
+            new: IpRangeMixed::from(parse_crowdsec_decisions(value.new)),
+            deleted: IpRangeMixed::from(parse_crowdsec_decisions(value.deleted)),
         }
     }
 }
