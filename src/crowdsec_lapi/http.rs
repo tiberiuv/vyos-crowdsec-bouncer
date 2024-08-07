@@ -8,6 +8,7 @@ use tracing::{info, instrument};
 
 use super::types::{CrowdsecAuth, DecisionsResponse, Origin};
 use crate::crowdsec_lapi::interface::CrowdsecLAPI;
+use crate::USER_AGENT;
 
 #[derive(Debug)]
 pub struct CrowdsecLapiClient {
@@ -18,6 +19,10 @@ pub struct CrowdsecLapiClient {
 
 impl CrowdsecLapiClient {
     pub fn new(host: Url, auth: CrowdsecAuth) -> Self {
+        let builder = Client::builder()
+            .timeout(Duration::from_secs(5))
+            .connect_timeout(Duration::from_secs(2))
+            .user_agent(USER_AGENT);
         let client = match auth.clone() {
             CrowdsecAuth::Apikey(apikey) => {
                 let mut headers_map = HeaderMap::new();
@@ -26,16 +31,10 @@ impl CrowdsecLapiClient {
                     HeaderValue::from_str(&apikey).expect("invalid key"),
                 );
 
-                Client::builder()
-                    .timeout(Duration::from_secs(5))
-                    .connect_timeout(Duration::from_secs(2))
-                    .default_headers(headers_map)
-                    .build()
+                builder.default_headers(headers_map).build()
             }
-            CrowdsecAuth::Certs(ref cert_auth) => Client::builder()
+            CrowdsecAuth::Certs(ref cert_auth) => builder
                 .use_rustls_tls()
-                .timeout(Duration::from_secs(5))
-                .connect_timeout(Duration::from_secs(2))
                 .add_root_certificate(cert_auth.root_ca.clone())
                 .identity(cert_auth.identity.clone())
                 .build(),
