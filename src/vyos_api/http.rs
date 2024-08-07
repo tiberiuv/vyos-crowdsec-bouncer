@@ -7,6 +7,8 @@ use reqwest::{Client, StatusCode, Url};
 use serde::{de::DeserializeOwned, Serialize};
 use tracing::instrument;
 
+use crate::USER_AGENT;
+
 use super::interface::VyosApi;
 use super::types::{
     IpSet, VyosCommandResponse, VyosConfigCommand, VyosConfigOperation, VyosGetCommand,
@@ -27,6 +29,7 @@ impl VyosClient {
             .connect_timeout(Duration::from_secs(5))
             .danger_accept_invalid_certs(true)
             .use_rustls_tls()
+            .user_agent(USER_AGENT)
             .build()
             .expect("failed to build client");
         Self {

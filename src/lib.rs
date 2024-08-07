@@ -11,6 +11,8 @@ use cli::Cli;
 use crowdsec_lapi::CrowdsecLapiClient;
 use vyos_api::VyosClient;
 
+pub(crate) const USER_AGENT: &str = "vyos-crowdsec-bouncer/v0.0.1";
+
 pub struct App {
     lapi: CrowdsecLapiClient,
     vyos: VyosClient,
