@@ -24,6 +24,7 @@ pub struct IpRangeMixed {
     pub v6: IpRange<Ipv6Net>,
 }
 
+
 impl IpRangeMixed {
     pub fn is_empty(&self) -> bool {
         self.v4.is_empty() && self.v6.is_empty()
