@@ -31,12 +31,12 @@ where
         match result {
             Ok(t) => return Ok(t),
             Err(err) if current_retries < retries => {
-                tracing::error!(msg = "Failed iteration", ?err);
-                tokio::time::sleep(exponential_backoff(current_retries, 1000)).await;
                 current_retries += 1;
+                tracing::error!(msg = "Failed iteration", ?err, retry = current_retries);
+                tokio::time::sleep(exponential_backoff(current_retries, 1000)).await;
             }
             Err(err) => {
-                tracing::error!("Ran out of retires");
+                tracing::error!(msg = "Ran out of retries", ?err);
                 return Err(err);
             }
         }
