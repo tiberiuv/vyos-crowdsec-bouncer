@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: fmt
-        run: cargo test --all
+        run: cargo test --all --all-targets --all-features
   format:
     runs-on: ubuntu-latest
     steps:
