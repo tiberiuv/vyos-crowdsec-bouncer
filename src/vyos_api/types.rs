@@ -46,12 +46,6 @@ pub(crate) struct VyosSaveCommand {
 }
 
 impl VyosConfigCommand {
-    pub(super) fn as_log_value(&self) -> String {
-        format!("{:?} {}", self.op, self.path.last().unwrap())
-    }
-}
-
-impl VyosConfigCommand {
     pub(super) fn new(op: VyosConfigOperation, path: Vec<String>) -> Self {
         Self { op, path }
     }
