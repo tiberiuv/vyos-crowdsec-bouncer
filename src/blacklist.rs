@@ -23,20 +23,7 @@ pub struct IpRangeMixed {
     pub v4: IpRange<Ipv4Net>,
     pub v6: IpRange<Ipv6Net>,
 }
-impl From<Vec<IpNet>> for IpRangeMixed {
-    fn from(value: Vec<IpNet>) -> Self {
-        let (allow_list_v4, allow_list_v6) = split_nets(value);
-        let mut allow_list_v4 = merge_nets(allow_list_v4);
-        allow_list_v4.simplify();
-        let mut allow_list_v6 = merge_nets(allow_list_v6);
-        allow_list_v6.simplify();
 
-        Self {
-            v4: allow_list_v4,
-            v6: allow_list_v6,
-        }
-    }
-}
 impl IpRangeMixed {
     pub fn is_empty(&self) -> bool {
         self.v4.is_empty() && self.v6.is_empty()
@@ -77,11 +64,27 @@ impl IpRangeMixed {
             v6: self.v6.merge(&other.v6),
         }
     }
+
     pub fn intersect(&self, other: &IpRangeMixed) -> Self {
         Self {
             v4: self.v4.intersect(&other.v4),
             v6: self.v6.intersect(&other.v6),
         }
+    }
+}
+impl From<Vec<IpNet>> for IpRangeMixed {
+    fn from(value: Vec<IpNet>) -> Self {
+        let (allow_list_v4, allow_list_v6) = split_nets(value);
+        let allow_list_v4 = merge_nets(allow_list_v4);
+        let allow_list_v6 = merge_nets(allow_list_v6);
+
+        let mut slf = Self {
+            v4: allow_list_v4,
+            v6: allow_list_v6,
+        };
+        slf.simplify();
+
+        slf
     }
 }
 
