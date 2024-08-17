@@ -18,7 +18,7 @@ impl BlacklistCache {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct IpRangeMixed {
     pub v4: IpRange<Ipv4Net>,
     pub v6: IpRange<Ipv6Net>,

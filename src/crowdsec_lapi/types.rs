@@ -129,20 +129,16 @@ pub struct DecisionsIpRange {
 impl DecisionsIpRange {
     pub fn filter_new(self, filter: &IpRangeMixed) -> Self {
         Self {
-            new: IpRangeMixed {
-                v4: self.new.v4.exclude(&filter.v4),
-                v6: self.new.v6.exclude(&filter.v6),
-            },
+            // Only keep in new nets that are not in the filter
+            new: self.new.exclude(filter),
             deleted: self.deleted,
         }
     }
     pub fn filter_deleted(self, filter: &IpRangeMixed) -> Self {
         Self {
-            new: IpRangeMixed {
-                v4: self.deleted.v4.intersect(&filter.v4),
-                v6: self.deleted.v6.intersect(&filter.v6),
-            },
-            deleted: self.deleted,
+            new: self.new,
+            // Only keep in deleted nets that are already in the filter
+            deleted: self.deleted.intersect(filter),
         }
     }
 }
@@ -214,12 +210,84 @@ impl TryFrom<ClientCerts> for CertAuth {
 
 #[cfg(test)]
 mod test {
-    use super::Decision;
+    use ipnet::{Ipv4Net, Ipv6Net};
+    use iprange::IpRange;
+
+    use crate::blacklist::IpRangeMixed;
+
+    use super::{Decision, DecisionsIpRange};
+
+    fn ipv4(s: &str) -> Ipv4Net {
+        s.parse().unwrap()
+    }
+    fn ipv4_range<'a, I: IntoIterator<Item = &'a str>>(i: I) -> IpRange<Ipv4Net> {
+        IpRange::from_iter(i.into_iter().map(ipv4))
+    }
+    fn ipv6(s: &str) -> Ipv6Net {
+        s.parse().unwrap()
+    }
+    fn ipv6_range<'a, I: IntoIterator<Item = &'a str>>(i: I) -> IpRange<Ipv6Net> {
+        IpRange::from_iter(i.into_iter().map(ipv6))
+    }
 
     #[test]
     fn deserializes_decision() {
         let serialized = r#"{"duration":"159h4m40.776506185s","id":22821676,"origin":"CAPI","scenario":"crowdsecurity/vpatch-connectwise-auth-bypass","scope":"Ip","type":"ban","value":"5.10.250.79"}"#;
 
         let _: Decision = serde_json::from_str(serialized).expect("failed to deserialize");
+    }
+
+    #[test]
+    fn filter_added_decisions() {
+        let decisions = DecisionsIpRange {
+            new: IpRangeMixed {
+                v4: ipv4_range(["192.168.0.1/32", "192.168.0.2/32"]),
+                v6: ipv6_range(["fd00::1/128", "fd00::2/128"]),
+            },
+            deleted: Default::default(),
+        };
+        let filter = IpRangeMixed {
+            v4: ipv4_range(["192.168.0.1/32"]),
+            v6: ipv6_range(["fd00::1/128"]),
+        };
+
+        let actual = decisions.filter_new(&filter);
+
+        let expected = IpRangeMixed {
+            v4: ipv4_range(["192.168.0.2/32"]),
+            v6: ipv6_range(["fd00::2/128"]),
+        };
+
+        assert_eq!(actual.new, expected);
+        assert_eq!(actual.deleted, IpRangeMixed::default());
+    }
+
+    #[test]
+    fn filter_deleted_decisions() {
+        let new_dec = IpRangeMixed {
+            v4: ipv4_range(["192.168.0.2/32"]),
+            v6: ipv6_range(["fd00::2/128"]),
+        };
+        let decisions = DecisionsIpRange {
+            new: new_dec.clone(),
+            deleted: IpRangeMixed {
+                v4: ipv4_range(["192.168.0.1/32", "10.10.10.10/32"]),
+                v6: ipv6_range(["fd00::1/128", "fd00:ec2::1/128"]),
+            },
+        };
+        let filter = IpRangeMixed {
+            v4: ipv4_range(["192.168.0.1/32"]),
+            v6: ipv6_range(["fd00::1/128"]),
+        };
+
+        let actual = decisions.filter_deleted(&filter);
+
+        let expected = IpRangeMixed {
+            v4: ipv4_range(["192.168.0.1/32"]),
+            v6: ipv6_range(["fd00::1/128"]),
+        };
+
+        assert_eq!(actual.deleted, expected);
+        assert_eq!(actual.new, new_dec);
     }
 }
