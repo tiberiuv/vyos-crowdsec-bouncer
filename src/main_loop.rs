@@ -77,3 +77,145 @@ pub async fn main_loop(app: App) -> Result<(), anyhow::Error> {
         retry_op(10, || do_iteration(&app, &trusted_ips, &decisions_options)).await?
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::blacklist::IpRangeMixed;
+    use crate::cli::CertAuth;
+    use crate::crowdsec_lapi::types::{CrowdsecAuth, Decision, DecisionsResponse};
+    use crate::crowdsec_lapi::{CrowdsecLapiClient, DecisionsOptions};
+    use crate::vyos_api::VyosClient;
+
+    use super::{do_iteration, App};
+    use iprange::IpRange;
+    use mockito::Server;
+
+    fn lapi_client(apikey: String, mock: &Server) -> CrowdsecLapiClient {
+        let url = format!("http://{}", mock.host_with_port());
+        CrowdsecLapiClient::new(url.parse().unwrap(), CrowdsecAuth::Apikey(apikey))
+    }
+
+    fn vyos_client(apikey: String, mock: &Server) -> VyosClient {
+        let url = format!("http://{}", mock.host_with_port());
+        VyosClient::new(url.parse().unwrap(), apikey)
+    }
+
+    fn mock_decision(cidr: &str) -> Decision {
+        Decision {
+            value: String::from(cidr),
+            ..Default::default()
+        }
+    }
+    fn mock_decisions<'a>(
+        cidrs_new: impl IntoIterator<Item = &'a str>,
+        cidrs_delete: impl IntoIterator<Item = &'a str>,
+    ) -> DecisionsResponse {
+        DecisionsResponse {
+            new: Some(cidrs_new.into_iter().map(mock_decision).collect()),
+            deleted: Some(cidrs_delete.into_iter().map(mock_decision).collect()),
+        }
+    }
+
+    #[tokio::test]
+    async fn iteration_sucessful() {
+        let mut lapi = Server::new_async().await;
+        let mut vyos = Server::new_async().await;
+        let apikey = String::from("test_key");
+        let app = App {
+            lapi: lapi_client(apikey.clone(), &lapi),
+            vyos: vyos_client(apikey.clone(), &vyos),
+            cli: crate::cli::Cli {
+                trusted_ips: None,
+                update_frequency_secs: 1,
+                vyos_api: "http://127.0.0.1:3000".parse().unwrap(),
+                vyos_apikey: apikey.to_string(),
+                firewall_group: String::from("group"),
+                crowdsec_api: "http://127.0.0.1:3001".parse().unwrap(),
+                auth: crate::cli::Auth {
+                    crowdsec_apikey: None,
+                    cert_auth: CertAuth {
+                        crowdsec_root_ca_cert: "/etc/cert/ca.crt".into(),
+                        crowdsec_client_key: "/etc/cert/tls.key".into(),
+                        crowdsec_client_cert: "/etc/cert/tls.crt".into(),
+                    },
+                },
+            },
+            blacklist: crate::blacklist::BlacklistCache::new(IpRangeMixed::default()),
+        };
+        let add_ips = ["127.0.0.1", "127.0.0.2"];
+        let initial_decisions = mock_decisions(add_ips, []);
+
+        let lapi_stream = lapi
+            .mock("GET", "/v1/decisions/stream?startup=true")
+            .match_header("apikey", "test_key")
+            .with_body(serde_json::to_vec(&initial_decisions).expect("valid json"))
+            .with_status(200)
+            .create();
+        let ipv4_get = vyos
+            .mock("POST", "/retrieve")
+            .with_body("{\"success\": true, \"data\": []}")
+            .with_status(200)
+            .create();
+        let ipv6_get = vyos
+            .mock("POST", "/retrieve")
+            .with_body("{\"success\": true, \"data\": []}")
+            .with_status(200)
+            .create();
+
+        let config = vyos
+            .mock("POST", "/configure")
+            .with_body("{}")
+            .with_status(200)
+            .create();
+
+        let decision_options = DecisionsOptions {
+            startup: true,
+            ..Default::default()
+        };
+        let result = do_iteration(&app, &IpRangeMixed::default(), &decision_options).await;
+        assert!(result.is_ok());
+        lapi_stream.assert();
+        ipv4_get.assert();
+        ipv6_get.assert();
+        config.assert();
+        assert_eq!(
+            app.blacklist.load().v4,
+            IpRange::from_iter(
+                add_ips
+                    .into_iter()
+                    .map(|x| format!("{x}/32").parse().unwrap())
+            )
+        );
+
+        let next_decisions = mock_decisions(["127.0.0.3"], ["127.0.0.1"]);
+
+        let lapi_stream = lapi
+            .mock("GET", "/v1/decisions/stream?startup=false")
+            .match_header("apikey", "test_key")
+            .with_body(serde_json::to_vec(&next_decisions).expect("valid json"))
+            .with_status(200)
+            .create();
+
+        let decision_options = DecisionsOptions {
+            startup: false,
+            ..Default::default()
+        };
+        let config = vyos
+            .mock("POST", "/configure")
+            .with_body("{}")
+            .with_status(200)
+            .create();
+        let result = do_iteration(&app, &IpRangeMixed::default(), &decision_options).await;
+        assert!(result.is_ok());
+        lapi_stream.assert();
+        config.assert();
+        assert_eq!(
+            app.blacklist.load().v4,
+            IpRange::from_iter(
+                ["127.0.0.2/32", "127.0.0.3/32"]
+                    .into_iter()
+                    .map(|x| x.parse().unwrap())
+            )
+        );
+    }
+}

@@ -14,7 +14,6 @@ use crate::USER_AGENT;
 pub struct CrowdsecLapiClient {
     client: Client,
     host: Url,
-    auth: CrowdsecAuth,
 }
 
 impl CrowdsecLapiClient {
@@ -40,12 +39,17 @@ impl CrowdsecLapiClient {
                 .build(),
         }
         .expect("Failed to build client");
-
-        Self { host, client, auth }
+        Self { client, host }
     }
+
+    pub fn new_with_client(host: Url, client: Client) -> Self {
+        Self { client, host }
+    }
+
     fn url(&self, path: &str) -> Url {
         self.host.join(path).expect("invalid url")
     }
+
     async fn get<T: DeserializeOwned>(
         &self,
         path: &str,
@@ -53,14 +57,9 @@ impl CrowdsecLapiClient {
     ) -> Result<T, anyhow::Error> {
         let url = self.url(path);
 
-        let mut request = self.client.get(url);
+        let request = self.client.get(url);
 
-        if let CrowdsecAuth::Apikey(ref apikey) = self.auth {
-            request = request.header("apikey", apikey);
-        }
-        let resp = f(request).send().await?;
-
-        let resp = resp.error_for_status()?;
+        let resp = f(request).send().await?.error_for_status()?;
 
         Ok(resp.json().await?)
     }
@@ -69,18 +68,18 @@ impl CrowdsecLapiClient {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
 #[allow(dead_code)]
-enum DecisionType {
+pub enum DecisionType {
     Ban,
     Captcha,
 }
 
 #[derive(Serialize, Default, Debug)]
 pub struct DecisionsOptions {
-    startup: bool,
+    pub startup: bool,
     #[serde(rename = "type")]
-    type_: Option<DecisionType>,
-    origins: Option<String>,
-    dedup: Option<bool>,
+    pub type_: Option<DecisionType>,
+    pub origins: Option<String>,
+    pub dedup: Option<bool>,
 }
 
 impl DecisionsOptions {
@@ -113,7 +112,7 @@ impl DecisionsOptions {
 
 pub const DEFAULT_DECISION_ORIGINS: [Origin; 3] = [Origin::Crowdsec, Origin::Lists, Origin::Cscli];
 impl CrowdsecLAPI for CrowdsecLapiClient {
-    #[instrument(skip(self))]
+    #[instrument(skip(self, decision_options))]
     async fn stream_decisions(
         &self,
         decision_options: &DecisionsOptions,

@@ -11,8 +11,8 @@ use crate::USER_AGENT;
 
 use super::interface::VyosApi;
 use super::types::{
-    IpSet, VyosCommandResponse, VyosConfigCommand, VyosConfigOperation, VyosGetCommand,
-    VyosGetOperation, VyosSaveCommand, VyosSaveOperation,
+    ipv4_group_get, ipv6_group_get, IpSet, VyosCommandResponse, VyosConfigCommand,
+    VyosConfigOperation, VyosSaveCommand,
 };
 
 #[derive(Debug)]
@@ -92,10 +92,8 @@ impl VyosApi for VyosClient {
         if save {
             match serialized {
                 serde_json::Value::Array(mut v) => v.push(
-                    serde_json::to_value(VyosSaveCommand {
-                        op: VyosSaveOperation::Save,
-                    })
-                    .expect("can serialize save command"),
+                    serde_json::to_value(VyosSaveCommand::default())
+                        .expect("can serialize save command"),
                 ),
                 _ => panic!("invalid commands"),
             }
@@ -110,30 +108,15 @@ impl VyosApi for VyosClient {
         &self,
         group_name: &str,
     ) -> Result<VyosCommandResponse<Vec<IpNet>>, anyhow::Error> {
-        let ipv4_path = format!("firewall group network-group {} network", group_name)
-            .split(' ')
-            .map(ToOwned::to_owned)
-            .collect();
-        let ipv6_path = format!("firewall group ipv6-network-group {} network", group_name)
-            .split(' ')
-            .map(ToOwned::to_owned)
-            .collect();
-
         let ipv4 = self.send::<VyosCommandResponse<Vec<IpNet>>, _>(
             "/retrieve",
-            VyosGetCommand {
-                op: VyosGetOperation::ReturnValues,
-                path: ipv4_path,
-            },
+            ipv4_group_get(group_name),
             None,
         );
 
         let ipv6 = self.send::<VyosCommandResponse<Vec<IpNet>>, _>(
             "/retrieve",
-            VyosGetCommand {
-                op: VyosGetOperation::ReturnValues,
-                path: ipv6_path,
-            },
+            ipv6_group_get(group_name),
             None,
         );
 

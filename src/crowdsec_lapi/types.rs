@@ -11,9 +11,10 @@ use tracing::error;
 use crate::blacklist::IpRangeMixed;
 use crate::cli::ClientCerts;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Origin {
+    #[default]
     Cscli,
     Crowdsec,
     #[serde(rename = "CAPI")]
@@ -35,26 +36,28 @@ impl Display for Origin {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[allow(dead_code)]
 pub enum Scope {
+    #[default]
     Ip,
     Range,
     #[serde(untagged)]
     Other(String),
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(rename_all = "lowercase")]
 #[allow(dead_code)]
 pub enum DecisionType {
+    #[default]
     Ban,
     Captcha,
     #[serde(untagged)]
     Other(String),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Decision {
     /// the duration of the decisions
     pub duration: String,
@@ -128,17 +131,18 @@ pub struct DecisionsIpRange {
 }
 
 impl DecisionsIpRange {
+    /// Only keep new nets that are not in the filter
     pub fn filter_new(self, filter: &IpRangeMixed) -> Self {
         Self {
-            // Only keep in new nets that are not in the filter
             new: self.new.exclude(filter),
             deleted: self.deleted,
         }
     }
+
+    /// Only keep deleted nets that are already in the filter
     pub fn filter_deleted(self, filter: &IpRangeMixed) -> Self {
         Self {
             new: self.new,
-            // Only keep in deleted nets that are already in the filter
             deleted: self.deleted.intersect(filter),
         }
     }

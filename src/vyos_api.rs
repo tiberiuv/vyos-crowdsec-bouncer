@@ -8,7 +8,7 @@ use tracing::{debug, info, instrument};
 
 pub use http::VyosClient;
 pub use interface::VyosApi;
-pub use types::{NetSet, VyosConfigOperation};
+pub use types::{ipv4_group_get, ipv6_group_get, NetSet, VyosConfigOperation, VyosSaveCommand};
 
 use crate::crowdsec_lapi::types::DecisionsIpRange;
 

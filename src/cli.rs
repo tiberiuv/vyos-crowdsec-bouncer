@@ -50,21 +50,21 @@ pub struct CertAuth {
         env = "CROWDSEC_ROOT_CA_CERT",
         default_value = "/etc/crowdsec_bouncer/certs/ca.crt"
     )]
-    crowdsec_root_ca_cert: PathBuf,
+    pub crowdsec_root_ca_cert: PathBuf,
 
     #[arg(
         long,
         env = "CROWDSEC_CLIENT_CERT",
         default_value = "/etc/crowdsec_bouncer/certs/tls.crt"
     )]
-    crowdsec_client_cert: PathBuf,
+    pub crowdsec_client_cert: PathBuf,
 
     #[arg(
         long,
         env = "CROWDSEC_CLIENT_KEY",
         default_value = "/etc/crowdsec_bouncer/certs/tls.key"
     )]
-    crowdsec_client_key: PathBuf,
+    pub crowdsec_client_key: PathBuf,
 }
 
 impl CertAuth {

@@ -8,6 +8,9 @@ use std::sync::Arc;
 pub struct BlacklistCache(pub ArcSwap<IpRangeMixed>);
 
 impl BlacklistCache {
+    pub fn new(range: IpRangeMixed) -> Self {
+        Self(ArcSwap::new(Arc::new(range)))
+    }
     pub fn store(&self, blacklist: IpRangeMixed) {
         let mut blacklist = blacklist;
         blacklist.simplify();
@@ -75,8 +78,8 @@ impl IpRangeMixed {
 impl From<Vec<IpNet>> for IpRangeMixed {
     fn from(value: Vec<IpNet>) -> Self {
         let (allow_list_v4, allow_list_v6) = split_nets(value);
-        let allow_list_v4 = merge_nets(allow_list_v4);
-        let allow_list_v6 = merge_nets(allow_list_v6);
+        let allow_list_v4 = iprange::IpRange::from_iter(allow_list_v4);
+        let allow_list_v6 = iprange::IpRange::from_iter(allow_list_v6);
 
         let mut slf = Self {
             v4: allow_list_v4,
@@ -100,12 +103,4 @@ fn split_nets(nets: Vec<IpNet>) -> (Vec<Ipv4Net>, Vec<Ipv6Net>) {
     }
 
     (nets_ipv4, nets_ipv6)
-}
-
-fn merge_nets<T: iprange::IpNet>(ipnets: Vec<T>) -> IpRange<T> {
-    let mut ips_range = iprange::IpRange::new();
-    for ipnet in ipnets {
-        ips_range.add(ipnet);
-    }
-    ips_range
 }
