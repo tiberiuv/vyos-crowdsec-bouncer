@@ -80,6 +80,7 @@ pub struct DecisionsOptions {
     #[serde(rename = "type")]
     type_: Option<DecisionType>,
     origins: Option<String>,
+    dedup: Option<bool>,
 }
 
 impl DecisionsOptions {
@@ -93,6 +94,11 @@ impl DecisionsOptions {
             startup,
             type_: Some(DecisionType::Ban),
             origins: Some(origins),
+            // TODO: set this back to true
+            // without this central decisions shadow local ones
+            // and until vyos fixes the bug to allow more than
+            // 15k ips we can't use central api
+            dedup: Some(false),
         }
     }
 
