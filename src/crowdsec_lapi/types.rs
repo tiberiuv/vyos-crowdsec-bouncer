@@ -13,13 +13,13 @@ use crate::cli::ClientCerts;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-#[serde(untagged)]
 pub enum Origin {
     Cscli,
     Crowdsec,
     #[serde(rename = "CAPI")]
     Capi,
     Lists,
+    #[serde(untagged)]
     Other(String),
 }
 
@@ -36,20 +36,21 @@ impl Display for Origin {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
 #[allow(dead_code)]
 pub enum Scope {
     Ip,
     Range,
+    #[serde(untagged)]
     Other(String),
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase", untagged)]
+#[serde(rename_all = "lowercase")]
 #[allow(dead_code)]
 pub enum DecisionType {
     Ban,
     Captcha,
+    #[serde(untagged)]
     Other(String),
 }
 
@@ -93,7 +94,7 @@ impl Decision {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DecisionsResponse {
     pub new: Option<Vec<Decision>>,
     pub deleted: Option<Vec<Decision>>,
@@ -214,6 +215,7 @@ mod test {
     use iprange::IpRange;
 
     use crate::blacklist::IpRangeMixed;
+    use crate::crowdsec_lapi::types::{DecisionType, Origin, Scope};
 
     use super::{Decision, DecisionsIpRange};
 
@@ -234,7 +236,19 @@ mod test {
     fn deserializes_decision() {
         let serialized = r#"{"duration":"159h4m40.776506185s","id":22821676,"origin":"CAPI","scenario":"crowdsecurity/vpatch-connectwise-auth-bypass","scope":"Ip","type":"ban","value":"5.10.250.79"}"#;
 
-        let _: Decision = serde_json::from_str(serialized).expect("failed to deserialize");
+        let decision: Decision = serde_json::from_str(serialized).expect("failed to deserialize");
+        assert!(matches!(decision.scope, Scope::Ip));
+        assert!(matches!(decision.origin, Origin::Capi));
+        assert!(matches!(decision.type_, DecisionType::Ban));
+    }
+    #[test]
+    fn deserializes_decision_other() {
+        let serialized = r#"{"duration":"159h4m40.776506185s","id":22821676,"origin":"something","scenario":"crowdsecurity/vpatch-connectwise-auth-bypass","scope":"other","type":"unknown","value":"5.10.250.79"}"#;
+
+        let decision: Decision = serde_json::from_str(serialized).expect("failed to deserialize");
+        assert!(matches!(decision.scope, Scope::Other(s) if s == "other"));
+        assert!(matches!(decision.origin, Origin::Other(s) if s == "something"));
+        assert!(matches!(decision.type_, DecisionType::Other(s) if s == "unknown"));
     }
 
     #[test]
