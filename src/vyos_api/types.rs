@@ -2,23 +2,12 @@ use ipnet::IpNet;
 use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
 
-#[derive(Clone, Copy, Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub enum VyosConfigOperation {
-    Set,
-    Delete,
-}
-
+#[allow(dead_code)]
 #[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(super) enum VyosSaveOperation {
-    Save,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(super) enum VyosGetOperation {
-    ReturnValues,
+pub enum VyosCommand {
+    Config(VyosConfigCommand),
+    Get(VyosGetOperation),
+    Save(VyosSaveCommand),
 }
 
 #[derive(Debug, Serialize)]
@@ -28,9 +17,42 @@ pub struct VyosConfigCommand {
 }
 
 #[derive(Debug, Serialize)]
-pub(super) struct VyosGetCommand {
-    pub(super) op: VyosGetOperation,
-    pub(super) path: Vec<String>,
+pub struct VyosGetCommand {
+    pub op: VyosGetOperation,
+    pub path: Vec<String>,
+}
+impl VyosGetCommand {
+    pub fn new(path: Vec<String>) -> Self {
+        Self {
+            op: VyosGetOperation::ReturnValues,
+            path,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Default)]
+pub struct VyosSaveCommand {
+    pub op: VyosSaveOperation,
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum VyosConfigOperation {
+    Set,
+    Delete,
+}
+
+#[derive(Debug, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum VyosSaveOperation {
+    #[default]
+    Save,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum VyosGetOperation {
+    ReturnValues,
 }
 
 #[derive(Debug, Deserialize)]
@@ -40,15 +62,32 @@ pub struct VyosCommandResponse<T> {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
-pub(crate) struct VyosSaveCommand {
-    pub(super) op: VyosSaveOperation,
-}
-
 impl VyosConfigCommand {
     pub(super) fn new(op: VyosConfigOperation, path: Vec<String>) -> Self {
         Self { op, path }
     }
+}
+
+fn ipv4_fw_group_path(group: &str) -> Vec<String> {
+    format!("firewall group network-group {} network", group)
+        .split(' ')
+        .map(ToOwned::to_owned)
+        .collect()
+}
+fn ipv6_fw_group_path(group: &str) -> Vec<String> {
+    format!("firewall group ipv6-network-group {} network", group)
+        .split(' ')
+        .map(ToOwned::to_owned)
+        .collect()
+}
+
+pub fn ipv4_group_get(group: &str) -> VyosGetCommand {
+    let path = ipv4_fw_group_path(group);
+    VyosGetCommand::new(path)
+}
+pub fn ipv6_group_get(group: &str) -> VyosGetCommand {
+    let path = ipv6_fw_group_path(group);
+    VyosGetCommand::new(path)
 }
 
 #[derive(Debug, Serialize)]
