@@ -11,7 +11,7 @@ use crate::App;
 pub async fn store_existing_blacklist(app: &App) -> Result<(), anyhow::Error> {
     let existing_networks = app
         .vyos
-        .retrieve_firewall_network_groups(&app.cli.firewall_group)
+        .retrieve_firewall_network_groups(&app.config.firewall_group)
         .await?;
 
     let blacklist = IpRangeMixed::from(existing_networks.data);
@@ -42,7 +42,7 @@ pub async fn do_iteration(
         if let Err(err) = update_firewall(
             &app.vyos,
             &decision_ips,
-            &app.cli.firewall_group,
+            &app.config.firewall_group,
             Some(Duration::from_secs(60 * 5)),
         )
         .await
@@ -65,14 +65,14 @@ pub async fn do_iteration(
 
 pub async fn main_loop(app: App) -> Result<(), anyhow::Error> {
     info!("Starting main loop, fetching decisions...");
-    let trusted_ips = IpRangeMixed::from(app.cli.trusted_ips.clone().unwrap_or_default());
+    let trusted_ips = IpRangeMixed::from(app.config.trusted_ips.clone());
     let mut decisions_options = DecisionsOptions::new(&DEFAULT_DECISION_ORIGINS, true);
 
     retry_op(5, || do_iteration(&app, &trusted_ips, &decisions_options)).await?;
 
     decisions_options.set_startup(false);
     loop {
-        tokio::time::sleep(Duration::from_secs(app.cli.update_frequency_secs)).await;
+        tokio::time::sleep(Duration::from_secs(app.config.update_frequency_secs)).await;
 
         retry_op(10, || do_iteration(&app, &trusted_ips, &decisions_options)).await?
     }
@@ -81,10 +81,10 @@ pub async fn main_loop(app: App) -> Result<(), anyhow::Error> {
 #[cfg(test)]
 mod tests {
     use crate::blacklist::IpRangeMixed;
-    use crate::cli::CertAuth;
     use crate::crowdsec_lapi::types::{CrowdsecAuth, Decision, DecisionsResponse};
     use crate::crowdsec_lapi::{CrowdsecLapiClient, DecisionsOptions};
     use crate::vyos_api::VyosClient;
+    use crate::Config;
 
     use super::{do_iteration, App};
     use iprange::IpRange;
@@ -124,42 +124,27 @@ mod tests {
         let app = App {
             lapi: lapi_client(apikey.clone(), &lapi),
             vyos: vyos_client(apikey.clone(), &vyos),
-            cli: crate::cli::Cli {
-                trusted_ips: None,
-                update_frequency_secs: 1,
-                vyos_api: "http://127.0.0.1:3000".parse().unwrap(),
-                vyos_apikey: apikey.to_string(),
+            config: Config {
                 firewall_group: String::from("group"),
-                crowdsec_api: "http://127.0.0.1:3001".parse().unwrap(),
-                auth: crate::cli::Auth {
-                    crowdsec_apikey: None,
-                    cert_auth: CertAuth {
-                        crowdsec_root_ca_cert: "/etc/cert/ca.crt".into(),
-                        crowdsec_client_key: "/etc/cert/tls.key".into(),
-                        crowdsec_client_cert: "/etc/cert/tls.crt".into(),
-                    },
-                },
+                trusted_ips: vec![],
+                update_frequency_secs: 1,
             },
             blacklist: crate::blacklist::BlacklistCache::new(IpRangeMixed::default()),
         };
+
         let add_ips = ["127.0.0.1", "127.0.0.2"];
         let initial_decisions = mock_decisions(add_ips, []);
-
         let lapi_stream = lapi
             .mock("GET", "/v1/decisions/stream?startup=true")
             .match_header("apikey", "test_key")
             .with_body(serde_json::to_vec(&initial_decisions).expect("valid json"))
             .with_status(200)
             .create();
-        let ipv4_get = vyos
+        let retrieve = vyos
             .mock("POST", "/retrieve")
             .with_body("{\"success\": true, \"data\": []}")
             .with_status(200)
-            .create();
-        let ipv6_get = vyos
-            .mock("POST", "/retrieve")
-            .with_body("{\"success\": true, \"data\": []}")
-            .with_status(200)
+            .expect(2)
             .create();
 
         let config = vyos
@@ -175,8 +160,7 @@ mod tests {
         let result = do_iteration(&app, &IpRangeMixed::default(), &decision_options).await;
         assert!(result.is_ok());
         lapi_stream.assert();
-        ipv4_get.assert();
-        ipv6_get.assert();
+        retrieve.assert();
         config.assert();
         assert_eq!(
             app.blacklist.load().v4,
