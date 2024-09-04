@@ -81,7 +81,7 @@ pub async fn main_loop(app: App) -> Result<(), anyhow::Error> {
 #[cfg(test)]
 mod tests {
     use crate::blacklist::IpRangeMixed;
-    use crate::crowdsec_lapi::types::{CrowdsecAuth, Decision, DecisionsResponse};
+    use crate::crowdsec_lapi::types::{CrowdsecAuth, Decision, DecisionsResponse, Scope};
     use crate::crowdsec_lapi::{CrowdsecLapiClient, DecisionsOptions};
     use crate::vyos_api::VyosClient;
     use crate::Config;
@@ -100,9 +100,15 @@ mod tests {
         VyosClient::new(url.parse().unwrap(), apikey)
     }
 
-    fn mock_decision(cidr: &str) -> Decision {
+    fn mock_decision(value: &str) -> Decision {
+        let scope = if value.contains('/') {
+            Scope::Range
+        } else {
+            Scope::Ip
+        };
         Decision {
-            value: String::from(cidr),
+            value: String::from(value),
+            scope,
             ..Default::default()
         }
     }
@@ -132,7 +138,7 @@ mod tests {
             blacklist: crate::blacklist::BlacklistCache::new(IpRangeMixed::default()),
         };
 
-        let add_ips = ["127.0.0.1", "127.0.0.2"];
+        let add_ips = ["127.0.0.1/32", "127.0.0.2", "junk"];
         let initial_decisions = mock_decisions(add_ips, []);
         let lapi_stream = lapi
             .mock("GET", "/v1/decisions/stream?startup=true")
@@ -165,9 +171,9 @@ mod tests {
         assert_eq!(
             app.blacklist.load().v4,
             IpRange::from_iter(
-                add_ips
+                ["127.0.0.1/32", "127.0.0.2/32"]
                     .into_iter()
-                    .map(|x| format!("{x}/32").parse().unwrap())
+                    .map(|x| x.parse().unwrap())
             )
         );
 
