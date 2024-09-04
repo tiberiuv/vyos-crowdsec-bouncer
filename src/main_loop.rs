@@ -86,7 +86,7 @@ mod tests {
 
     use super::{do_iteration, App};
     use iprange::IpRange;
-    use mockito::{Server, ServerGuard};
+    use mockito::{Mock, Server, ServerGuard};
 
     fn lapi_client(apikey: String, mock: &Server) -> CrowdsecLapiClient {
         let url = format!("http://{}", mock.host_with_port());
@@ -118,6 +118,13 @@ mod tests {
             new: Some(cidrs_new.into_iter().map(mock_decision).collect()),
             deleted: Some(cidrs_delete.into_iter().map(mock_decision).collect()),
         }
+    }
+    fn mock_save_command(mock: &mut ServerGuard) -> Mock {
+        mock.mock("POST", "/config-file")
+            .with_body("{\"success\": true, \"data\": []}")
+            .with_status(200)
+            .expect(1)
+            .create()
     }
     struct TestApp {
         app: App,
@@ -173,6 +180,7 @@ mod tests {
             .with_body("{}")
             .with_status(200)
             .create();
+        let save = mock_save_command(&mut test_app.vyos_mock);
 
         let decision_options = DecisionsOptions {
             startup: true,
@@ -183,6 +191,7 @@ mod tests {
         lapi_stream.assert();
         retrieve.assert();
         config.assert();
+        save.assert();
         assert_eq!(
             test_app.app.blacklist.load().v4,
             IpRange::from_iter(
@@ -212,10 +221,12 @@ mod tests {
             .with_body("{}")
             .with_status(200)
             .create();
+        let save = mock_save_command(&mut test_app.vyos_mock);
         let result = do_iteration(&test_app.app, &decision_options).await;
         assert!(result.is_ok());
         lapi_stream.assert();
         config.assert();
+        save.assert();
         assert_eq!(
             test_app.app.blacklist.load().v4,
             IpRange::from_iter(

@@ -9,9 +9,8 @@ use tracing::instrument;
 use crate::USER_AGENT;
 
 use super::interface::VyosApi;
-use super::types::{
-    ipv4_group_get, ipv6_group_get, VyosCommandResponse, VyosConfigCommand, VyosSaveCommand,
-};
+use super::types::{ipv4_group_get, ipv6_group_get, VyosCommandResponse, VyosConfigCommand};
+use super::VyosSaveCommand;
 
 #[derive(Debug)]
 pub struct VyosClient {
@@ -83,20 +82,18 @@ impl VyosApi for VyosClient {
         &self,
         commands: &[VyosConfigCommand<'a>],
         timeout: Option<Duration>,
-        save: bool,
     ) -> Result<(), anyhow::Error> {
-        let serialized = serde_json::to_value(commands)?;
-        if save {
-            match serialized {
-                serde_json::Value::Array(mut v) => v.push(
-                    serde_json::to_value(VyosSaveCommand::default())
-                        .expect("can serialize save command"),
-                ),
-                _ => panic!("invalid commands"),
-            }
-        }
-
         self.send::<serde_json::Value, _>("/configure", commands, timeout)
+            .await?;
+        Ok(())
+    }
+    #[instrument(skip(self, command, timeout))]
+    async fn save_config<'a>(
+        &self,
+        command: VyosSaveCommand,
+        timeout: Option<Duration>,
+    ) -> Result<(), anyhow::Error> {
+        self.send::<serde_json::Value, _>("/config-file", command, timeout)
             .await?;
         Ok(())
     }
