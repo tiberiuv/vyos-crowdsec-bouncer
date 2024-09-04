@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::time::Duration;
 
 use reqwest::header::{HeaderMap, HeaderValue};
@@ -8,6 +9,7 @@ use tracing::{info, instrument};
 
 use super::types::{CrowdsecAuth, DecisionsResponse, Origin};
 use crate::crowdsec_lapi::interface::CrowdsecLAPI;
+use crate::metrics::OUTGOING_REQUESTS_COUNTER;
 use crate::USER_AGENT;
 
 #[derive(Debug)]
@@ -128,6 +130,13 @@ impl CrowdsecLAPI for CrowdsecLapiClient {
             msg = "Retrieved decisions",
             added, deleted, decision_options.startup
         );
+
+        OUTGOING_REQUESTS_COUNTER
+            .with(&HashMap::from([
+                ("destination", "CROWDSEC"),
+                ("path", path),
+            ]))
+            .inc();
 
         Ok(resp)
     }

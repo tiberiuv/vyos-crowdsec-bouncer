@@ -6,6 +6,7 @@ use reqwest::{Client, StatusCode, Url};
 use serde::{de::DeserializeOwned, Serialize};
 use tracing::instrument;
 
+use crate::metrics::OUTGOING_REQUESTS_COUNTER;
 use crate::USER_AGENT;
 
 use super::interface::VyosApi;
@@ -85,6 +86,9 @@ impl VyosApi for VyosClient {
     ) -> Result<(), anyhow::Error> {
         self.send::<serde_json::Value, _>("/configure", commands, timeout)
             .await?;
+        OUTGOING_REQUESTS_COUNTER
+            .with_label_values(&["VYOS", "/configure"])
+            .inc();
         Ok(())
     }
     #[instrument(skip(self, command, timeout))]
@@ -95,6 +99,9 @@ impl VyosApi for VyosClient {
     ) -> Result<(), anyhow::Error> {
         self.send::<serde_json::Value, _>("/config-file", command, timeout)
             .await?;
+        OUTGOING_REQUESTS_COUNTER
+            .with_label_values(&["VYOS", "/config-file"])
+            .inc();
         Ok(())
     }
     #[instrument(skip(self))]
@@ -113,6 +120,10 @@ impl VyosApi for VyosClient {
             ipv6_group_get(group_name),
             None,
         );
+
+        OUTGOING_REQUESTS_COUNTER
+            .with_label_values(&["VYOS", "/retrieve"])
+            .inc_by(2);
 
         let (ipv4, ipv6) = futures_util::join!(ipv4, ipv6);
         let mut ips = ipv4?;
