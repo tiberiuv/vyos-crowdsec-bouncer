@@ -1,19 +1,20 @@
 use ipnet::IpNet;
 use serde::{Deserialize, Serialize};
-use std::net::IpAddr;
+use std::borrow::Cow;
+use std::sync::LazyLock;
 
 #[allow(dead_code)]
 #[derive(Debug, Serialize)]
-pub enum VyosCommand {
-    Config(VyosConfigCommand),
+pub enum VyosCommand<'a> {
+    Config(VyosConfigCommand<'a>),
     Get(VyosGetOperation),
     Save(VyosSaveCommand),
 }
 
 #[derive(Debug, Serialize)]
-pub struct VyosConfigCommand {
+pub struct VyosConfigCommand<'a> {
     pub op: VyosConfigOperation,
-    pub path: Vec<String>,
+    pub path: Vec<Cow<'a, str>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -62,8 +63,8 @@ pub struct VyosCommandResponse<T> {
     pub error: Option<String>,
 }
 
-impl VyosConfigCommand {
-    pub(super) fn new(op: VyosConfigOperation, path: Vec<String>) -> Self {
+impl<'a> VyosConfigCommand<'a> {
+    pub(super) fn new(op: VyosConfigOperation, path: Vec<Cow<'a, str>>) -> Self {
         Self { op, path }
     }
 }
@@ -90,41 +91,18 @@ pub fn ipv6_group_get(group: &str) -> VyosGetCommand {
     VyosGetCommand::new(path)
 }
 
-#[derive(Debug, Serialize)]
-pub struct IpSet<'a>(pub &'a [IpAddr]);
+static FIREWALL_NETWORK_GROUP: LazyLock<Vec<Cow<str>>> = LazyLock::new(|| {
+    ["firewall", "group", "network-group", "", "network", ""]
+        .into_iter()
+        .map(Cow::from)
+        .collect()
+});
 
-impl<'a> IpSet<'a> {
-    pub fn into_vyos_commands(
-        self,
-        op: VyosConfigOperation,
-        firewall_group: &str,
-    ) -> Vec<VyosConfigCommand> {
-        self.0
-            .iter()
-            .map(|ip| match ip {
-                IpAddr::V4(v4) => VyosConfigCommand::new(
-                    op,
-                    format!(
-                        "firewall group address-group {} address {}",
-                        firewall_group, v4
-                    )
-                    .split(' ')
-                    .map(ToOwned::to_owned)
-                    .collect(),
-                ),
-                IpAddr::V6(v6) => VyosConfigCommand::new(
-                    op,
-                    format!(
-                        "firewall group ipv6-address-group {} address {}",
-                        firewall_group, v6,
-                    )
-                    .split(' ')
-                    .map(ToOwned::to_owned)
-                    .collect(),
-                ),
-            })
-            .collect()
-    }
+fn firewall_network_group(fw_group: &str, cidr: String) -> Vec<Cow<str>> {
+    let mut path = (*FIREWALL_NETWORK_GROUP).clone();
+    path[3] = fw_group.into();
+    path[5] = cidr.into();
+    path
 }
 
 #[derive(Debug, Serialize)]
@@ -137,28 +115,31 @@ impl<'a> NetSet<'a> {
     ) -> Vec<VyosConfigCommand> {
         self.0
             .iter()
-            .map(|net| match net {
-                IpNet::V4(v4) => VyosConfigCommand::new(
-                    op,
-                    format!(
-                        "firewall group network-group {} network {}",
-                        firewall_group, v4
-                    )
-                    .split(' ')
-                    .map(ToOwned::to_owned)
-                    .collect(),
-                ),
-                IpNet::V6(v6) => VyosConfigCommand::new(
-                    op,
-                    format!(
-                        "firewall group ipv6-network-group {} network {}",
-                        firewall_group, v6,
-                    )
-                    .split(' ')
-                    .map(ToOwned::to_owned)
-                    .collect(),
-                ),
+            .map(|net| {
+                VyosConfigCommand::new(op, firewall_network_group(firewall_group, net.to_string()))
             })
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{NetSet, VyosConfigOperation};
+
+    #[test]
+    fn serialize_commands() {
+        let list = vec![
+            "127.0.0.1/32".parse().unwrap(),
+            "127.0.0.2/32".parse().unwrap(),
+        ];
+        let netset = NetSet(&list);
+
+        let actual =
+            serde_json::to_string(&netset.into_vyos_commands(VyosConfigOperation::Set, "group"))
+                .unwrap();
+
+        let expected = r#"[{"op":"set","path":["firewall","group","network-group","group","network","127.0.0.1/32"]},{"op":"set","path":["firewall","group","network-group","group","network","127.0.0.2/32"]}]"#;
+
+        assert_eq!(actual, expected);
     }
 }

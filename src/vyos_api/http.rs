@@ -1,4 +1,3 @@
-use std::future::Future;
 use std::time::Duration;
 
 use ipnet::IpNet;
@@ -11,8 +10,7 @@ use crate::USER_AGENT;
 
 use super::interface::VyosApi;
 use super::types::{
-    ipv4_group_get, ipv6_group_get, IpSet, VyosCommandResponse, VyosConfigCommand,
-    VyosConfigOperation, VyosSaveCommand,
+    ipv4_group_get, ipv6_group_get, VyosCommandResponse, VyosConfigCommand, VyosSaveCommand,
 };
 
 #[derive(Debug)]
@@ -67,24 +65,23 @@ impl VyosClient {
         let resp = req.send().await?;
 
         match resp.error_for_status_ref() {
-            Ok(_) => (),
+            Ok(_) => Ok(resp.json().await?),
             Err(err) => {
                 if err.status() == Some(StatusCode::BAD_REQUEST) {
-                    return Err(anyhow::anyhow!(resp.json::<serde_json::Value>().await?));
+                    Err(anyhow::anyhow!(resp.json::<serde_json::Value>().await?))
                 } else {
-                    return Err(anyhow::Error::from(err));
-                };
+                    Err(anyhow::Error::from(err))
+                }
             }
-        };
-        Ok(resp.json().await?)
+        }
     }
 }
 
 impl VyosApi for VyosClient {
     #[instrument(skip(self, commands, timeout))]
-    async fn set_firewall_groups(
+    async fn set_firewall_groups<'a>(
         &self,
-        commands: &[VyosConfigCommand],
+        commands: &[VyosConfigCommand<'a>],
         timeout: Option<Duration>,
         save: bool,
     ) -> Result<(), anyhow::Error> {
@@ -125,24 +122,5 @@ impl VyosApi for VyosClient {
         ips.data.append(&mut ipv6?.data);
 
         Ok(ips)
-    }
-
-    fn ban_ips<'a>(
-        &self,
-        fw_group_name: &str,
-        ips: IpSet<'a>,
-    ) -> impl Future<Output = Result<serde_json::Value, anyhow::Error>> {
-        let commands = ips.into_vyos_commands(VyosConfigOperation::Set, fw_group_name);
-
-        self.send("/configure", commands, None)
-    }
-    fn remove_ip_ban<'a>(
-        &self,
-        fw_group_name: &str,
-        ips: IpSet<'a>,
-    ) -> impl Future<Output = Result<serde_json::Value, anyhow::Error>> {
-        let commands = ips.into_vyos_commands(VyosConfigOperation::Set, fw_group_name);
-
-        self.send("/configure", commands, None)
     }
 }
