@@ -8,8 +8,9 @@ pub mod vyos_api;
 
 use blacklist::BlacklistCache;
 use crowdsec_lapi::CrowdsecLapiClient;
-use ipnet::IpNet;
 use vyos_api::VyosClient;
+
+use self::blacklist::IpRangeMixed;
 
 pub(crate) const USER_AGENT: &str = "vyos-crowdsec-bouncer/v0.0.1";
 
@@ -22,7 +23,7 @@ pub struct App {
 
 pub struct Config {
     pub firewall_group: String,
-    pub trusted_ips: Vec<IpNet>,
+    pub trusted_ips: IpRangeMixed,
     pub update_frequency_secs: u64,
 }
 
