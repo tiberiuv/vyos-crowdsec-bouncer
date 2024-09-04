@@ -208,4 +208,54 @@ mod tests {
             )
         );
     }
+
+    #[tokio::test]
+    async fn no_update_if_present_in_cache() {
+        let mut lapi = Server::new_async().await;
+        let mut vyos = Server::new_async().await;
+        let apikey = String::from("test_key");
+        let app = App {
+            lapi: lapi_client(apikey.clone(), &lapi),
+            vyos: vyos_client(apikey.clone(), &vyos),
+            config: Config {
+                firewall_group: String::from("group"),
+                trusted_ips: vec![],
+                update_frequency_secs: 1,
+            },
+            blacklist: crate::blacklist::BlacklistCache::new(IpRangeMixed::default()),
+        };
+
+        let add_ips = ["127.0.0.1/32"];
+        let initial_decisions = mock_decisions(add_ips, []);
+        let lapi_stream = lapi
+            .mock("GET", "/v1/decisions/stream?startup=true")
+            .match_header("apikey", "test_key")
+            .with_body(serde_json::to_vec(&initial_decisions).expect("valid json"))
+            .with_status(200)
+            .create();
+        let retrieve = vyos
+            .mock("POST", "/retrieve")
+            .with_body("{\"success\": true, \"data\": [\"127.0.0.1/31\"]}")
+            .with_status(200)
+            .expect(2)
+            .create();
+
+        // No call to update firewall since all the decisions already exist
+        let config = vyos
+            .mock("POST", "/configure")
+            .with_body("{}")
+            .with_status(200)
+            .expect(0)
+            .create();
+        let decision_options = DecisionsOptions {
+            startup: true,
+            ..Default::default()
+        };
+
+        let result = do_iteration(&app, &IpRangeMixed::default(), &decision_options).await;
+        assert!(result.is_ok());
+        lapi_stream.assert();
+        retrieve.assert();
+        config.assert();
+    }
 }
