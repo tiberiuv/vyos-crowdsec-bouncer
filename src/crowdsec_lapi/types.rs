@@ -89,11 +89,14 @@ impl Decision {
                 return Err(anyhow!("decision skipped due to 'until' in the future"));
             }
         }
-        let parsed = self.value.parse::<IpAddr>()?;
-        Ok(match parsed {
-            IpAddr::V4(v4) => IpNet::V4(Ipv4Net::new(v4, 32)?),
-            IpAddr::V6(v6) => IpNet::V6(Ipv6Net::new(v6, 128)?),
-        })
+        match self.scope {
+            Scope::Ip => Ok(match self.value.parse::<IpAddr>()? {
+                IpAddr::V4(v4) => IpNet::V4(Ipv4Net::new(v4, 32)?),
+                IpAddr::V6(v6) => IpNet::V6(Ipv6Net::new(v6, 128)?),
+            }),
+            Scope::Range => Ok(self.value.parse::<IpNet>()?),
+            Scope::Other(ref scope) => Err(anyhow!("Unhadled scope '{}'", scope)),
+        }
     }
 }
 
@@ -215,13 +218,15 @@ impl TryFrom<ClientCerts> for CertAuth {
 
 #[cfg(test)]
 mod test {
-    use ipnet::{Ipv4Net, Ipv6Net};
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+
+    use ipnet::{IpNet, Ipv4Net, Ipv6Net};
     use iprange::IpRange;
 
     use crate::blacklist::IpRangeMixed;
     use crate::crowdsec_lapi::types::{DecisionType, Origin, Scope};
 
-    use super::{Decision, DecisionsIpRange};
+    use super::{parse_crowdsec_decisions, Decision, DecisionsIpRange};
 
     fn ipv4(s: &str) -> Ipv4Net {
         s.parse().unwrap()
@@ -234,6 +239,24 @@ mod test {
     }
     fn ipv6_range<'a, I: IntoIterator<Item = &'a str>>(i: I) -> IpRange<Ipv6Net> {
         IpRange::from_iter(i.into_iter().map(ipv6))
+    }
+
+    fn mock_decision(value: &str) -> Decision {
+        let scope = if value.contains('/') {
+            Scope::Range
+        } else if value.parse::<IpAddr>().is_ok() {
+            Scope::Ip
+        } else {
+            Scope::Other(String::from("stuff"))
+        };
+        Decision {
+            value: String::from(value),
+            scope,
+            ..Default::default()
+        }
+    }
+    fn mock_decisions<'a>(decision_values: impl IntoIterator<Item = &'a str>) -> Vec<Decision> {
+        decision_values.into_iter().map(mock_decision).collect()
     }
 
     #[test]
@@ -307,5 +330,24 @@ mod test {
 
         assert_eq!(actual.deleted, expected);
         assert_eq!(actual.new, new_dec);
+    }
+
+    #[test]
+    fn parses_decisions_correctly_ignoring_garbage() {
+        let decisions = mock_decisions([
+            "127.0.0.1/31",
+            "127.0.0.3",
+            "fd00:ec2::1/128",
+            "some_source",
+        ]);
+
+        let actual = parse_crowdsec_decisions(Some(decisions));
+        let expected = vec![
+            IpNet::V4(Ipv4Net::new(Ipv4Addr::new(127, 0, 0, 1), 31).unwrap()),
+            IpNet::V4(Ipv4Net::new(Ipv4Addr::new(127, 0, 0, 3), 32).unwrap()),
+            IpNet::V6(Ipv6Net::new(Ipv6Addr::new(64768, 3778, 0, 0, 0, 0, 0, 1), 128).unwrap()),
+        ];
+
+        assert_eq!(actual, expected);
     }
 }

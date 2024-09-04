@@ -81,14 +81,14 @@ pub async fn main_loop(app: App) -> Result<(), anyhow::Error> {
 #[cfg(test)]
 mod tests {
     use crate::blacklist::IpRangeMixed;
-    use crate::crowdsec_lapi::types::{CrowdsecAuth, Decision, DecisionsResponse};
+    use crate::crowdsec_lapi::types::{CrowdsecAuth, Decision, DecisionsResponse, Scope};
     use crate::crowdsec_lapi::{CrowdsecLapiClient, DecisionsOptions};
     use crate::vyos_api::VyosClient;
     use crate::Config;
 
     use super::{do_iteration, App};
     use iprange::IpRange;
-    use mockito::Server;
+    use mockito::{Server, ServerGuard};
 
     fn lapi_client(apikey: String, mock: &Server) -> CrowdsecLapiClient {
         let url = format!("http://{}", mock.host_with_port());
@@ -100,9 +100,15 @@ mod tests {
         VyosClient::new(url.parse().unwrap(), apikey)
     }
 
-    fn mock_decision(cidr: &str) -> Decision {
+    fn mock_decision(value: &str) -> Decision {
+        let scope = if value.contains('/') {
+            Scope::Range
+        } else {
+            Scope::Ip
+        };
         Decision {
-            value: String::from(cidr),
+            value: String::from(value),
+            scope,
             ..Default::default()
         }
     }
@@ -115,39 +121,56 @@ mod tests {
             deleted: Some(cidrs_delete.into_iter().map(mock_decision).collect()),
         }
     }
-
-    #[tokio::test]
-    async fn iteration_sucessful() {
-        let mut lapi = Server::new_async().await;
-        let mut vyos = Server::new_async().await;
-        let apikey = String::from("test_key");
+    struct TestApp {
+        app: App,
+        lapi_mock: ServerGuard,
+        vyos_mock: ServerGuard,
+    }
+    async fn mock_app(apikey: String) -> TestApp {
+        let lapi_mock = Server::new_async().await;
+        let vyos_mock = Server::new_async().await;
         let app = App {
-            lapi: lapi_client(apikey.clone(), &lapi),
-            vyos: vyos_client(apikey.clone(), &vyos),
+            lapi: lapi_client(apikey.clone(), &lapi_mock),
+            vyos: vyos_client(apikey, &vyos_mock),
             config: Config {
                 firewall_group: String::from("group"),
                 trusted_ips: vec![],
                 update_frequency_secs: 1,
             },
-            blacklist: crate::blacklist::BlacklistCache::new(IpRangeMixed::default()),
+            blacklist: crate::BlacklistCache::default(),
         };
 
-        let add_ips = ["127.0.0.1", "127.0.0.2"];
+        TestApp {
+            app,
+            lapi_mock,
+            vyos_mock,
+        }
+    }
+
+    #[tokio::test]
+    async fn iteration_sucessful() {
+        let apikey = String::from("test_key");
+        let mut test_app = mock_app(apikey.clone()).await;
+
+        let add_ips = ["127.0.0.1/32", "127.0.0.2", "junk"];
         let initial_decisions = mock_decisions(add_ips, []);
-        let lapi_stream = lapi
+        let lapi_stream = test_app
+            .lapi_mock
             .mock("GET", "/v1/decisions/stream?startup=true")
             .match_header("apikey", "test_key")
             .with_body(serde_json::to_vec(&initial_decisions).expect("valid json"))
             .with_status(200)
             .create();
-        let retrieve = vyos
+        let retrieve = test_app
+            .vyos_mock
             .mock("POST", "/retrieve")
             .with_body("{\"success\": true, \"data\": []}")
             .with_status(200)
             .expect(2)
             .create();
 
-        let config = vyos
+        let config = test_app
+            .vyos_mock
             .mock("POST", "/configure")
             .with_body("{}")
             .with_status(200)
@@ -157,23 +180,24 @@ mod tests {
             startup: true,
             ..Default::default()
         };
-        let result = do_iteration(&app, &IpRangeMixed::default(), &decision_options).await;
+        let result = do_iteration(&test_app.app, &IpRangeMixed::default(), &decision_options).await;
         assert!(result.is_ok());
         lapi_stream.assert();
         retrieve.assert();
         config.assert();
         assert_eq!(
-            app.blacklist.load().v4,
+            test_app.app.blacklist.load().v4,
             IpRange::from_iter(
-                add_ips
+                ["127.0.0.1/32", "127.0.0.2/32"]
                     .into_iter()
-                    .map(|x| format!("{x}/32").parse().unwrap())
+                    .map(|x| x.parse().unwrap())
             )
         );
 
         let next_decisions = mock_decisions(["127.0.0.3"], ["127.0.0.1"]);
 
-        let lapi_stream = lapi
+        let lapi_stream = test_app
+            .lapi_mock
             .mock("GET", "/v1/decisions/stream?startup=false")
             .match_header("apikey", "test_key")
             .with_body(serde_json::to_vec(&next_decisions).expect("valid json"))
@@ -184,22 +208,65 @@ mod tests {
             startup: false,
             ..Default::default()
         };
-        let config = vyos
+        let config = test_app
+            .vyos_mock
             .mock("POST", "/configure")
             .with_body("{}")
             .with_status(200)
             .create();
-        let result = do_iteration(&app, &IpRangeMixed::default(), &decision_options).await;
+        let result = do_iteration(&test_app.app, &IpRangeMixed::default(), &decision_options).await;
         assert!(result.is_ok());
         lapi_stream.assert();
         config.assert();
         assert_eq!(
-            app.blacklist.load().v4,
+            test_app.app.blacklist.load().v4,
             IpRange::from_iter(
                 ["127.0.0.2/32", "127.0.0.3/32"]
                     .into_iter()
                     .map(|x| x.parse().unwrap())
             )
         );
+    }
+
+    #[tokio::test]
+    async fn no_update_if_present_in_cache() {
+        let apikey = String::from("test_key");
+        let mut test_app = mock_app(apikey.clone()).await;
+
+        let add_ips = ["127.0.0.1/32"];
+        let initial_decisions = mock_decisions(add_ips, []);
+        let lapi_stream = test_app
+            .lapi_mock
+            .mock("GET", "/v1/decisions/stream?startup=true")
+            .match_header("apikey", "test_key")
+            .with_body(serde_json::to_vec(&initial_decisions).expect("valid json"))
+            .with_status(200)
+            .create();
+        let retrieve = test_app
+            .vyos_mock
+            .mock("POST", "/retrieve")
+            .with_body("{\"success\": true, \"data\": [\"127.0.0.1/31\"]}")
+            .with_status(200)
+            .expect(2)
+            .create();
+
+        // No call to update firewall since all the decisions already exist
+        let config = test_app
+            .vyos_mock
+            .mock("POST", "/configure")
+            .with_body("{}")
+            .with_status(200)
+            .expect(0)
+            .create();
+        let decision_options = DecisionsOptions {
+            startup: true,
+            ..Default::default()
+        };
+
+        let result = do_iteration(&test_app.app, &IpRangeMixed::default(), &decision_options).await;
+        assert!(result.is_ok());
+        lapi_stream.assert();
+        retrieve.assert();
+        config.assert();
     }
 }
