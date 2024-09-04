@@ -5,9 +5,10 @@ use std::sync::LazyLock;
 
 #[allow(dead_code)]
 #[derive(Debug, Serialize)]
+#[serde(untagged)]
 pub enum VyosCommand<'a> {
     Config(VyosConfigCommand<'a>),
-    Get(VyosGetOperation),
+    Get(VyosGetCommand<'a>),
     Save(VyosSaveCommand),
 }
 
@@ -18,15 +19,15 @@ pub struct VyosConfigCommand<'a> {
 }
 
 #[derive(Debug, Serialize)]
-pub struct VyosGetCommand {
+pub struct VyosGetCommand<'a> {
     pub op: VyosGetOperation,
-    pub path: Vec<String>,
+    pub path: Vec<Cow<'a, str>>,
 }
-impl VyosGetCommand {
-    pub fn new(path: Vec<String>) -> Self {
+impl<'a> VyosGetCommand<'a> {
+    pub fn new(path: impl IntoIterator<Item = Cow<'a, str>>) -> Self {
         Self {
             op: VyosGetOperation::ReturnValues,
-            path,
+            path: path.into_iter().collect(),
         }
     }
 }
@@ -69,37 +70,52 @@ impl<'a> VyosConfigCommand<'a> {
     }
 }
 
-fn ipv4_fw_group_path(group: &str) -> Vec<String> {
-    format!("firewall group network-group {} network", group)
-        .split(' ')
-        .map(ToOwned::to_owned)
+static FW_GROUP_PATH_GET: LazyLock<Vec<Cow<str>>> = LazyLock::new(|| {
+    ["firewall", "group", "network-group", "", "network"]
+        .into_iter()
+        .map(Cow::from)
         .collect()
-}
-fn ipv6_fw_group_path(group: &str) -> Vec<String> {
-    format!("firewall group ipv6-network-group {} network", group)
-        .split(' ')
-        .map(ToOwned::to_owned)
+});
+static FW_IPV6_GROUP_PATH_GET: LazyLock<Vec<Cow<str>>> = LazyLock::new(|| {
+    ["firewall", "group", "ipv6-network-group", "", "network"]
+        .into_iter()
+        .map(Cow::from)
         .collect()
-}
-
-pub fn ipv4_group_get(group: &str) -> VyosGetCommand {
-    let path = ipv4_fw_group_path(group);
-    VyosGetCommand::new(path)
-}
-pub fn ipv6_group_get(group: &str) -> VyosGetCommand {
-    let path = ipv6_fw_group_path(group);
-    VyosGetCommand::new(path)
-}
-
-static FIREWALL_NETWORK_GROUP: LazyLock<Vec<Cow<str>>> = LazyLock::new(|| {
+});
+static FW_GROUP_PATH_SET: LazyLock<Vec<Cow<str>>> = LazyLock::new(|| {
     ["firewall", "group", "network-group", "", "network", ""]
         .into_iter()
         .map(Cow::from)
         .collect()
 });
+static FW_IPV6_GROUP_PATH_SET: LazyLock<Vec<Cow<str>>> = LazyLock::new(|| {
+    ["firewall", "group", "ipv6-network-group", "", "network", ""]
+        .into_iter()
+        .map(Cow::from)
+        .collect()
+});
 
-fn firewall_network_group(fw_group: &str, cidr: String) -> Vec<Cow<str>> {
-    let mut path = (*FIREWALL_NETWORK_GROUP).clone();
+pub fn ipv4_group_get(fw_group: &str) -> VyosGetCommand {
+    let mut path = FW_GROUP_PATH_GET.clone();
+    path[3] = fw_group.into();
+
+    VyosGetCommand::new(path)
+}
+pub fn ipv6_group_get(fw_group: &str) -> VyosGetCommand {
+    let mut path = FW_IPV6_GROUP_PATH_GET.clone();
+    path[3] = fw_group.into();
+
+    VyosGetCommand::new(path)
+}
+
+fn firewall_network_group_set(fw_group: &str, cidr: String) -> Vec<Cow<str>> {
+    let mut path = (*FW_GROUP_PATH_SET).clone();
+    path[3] = fw_group.into();
+    path[5] = cidr.into();
+    path
+}
+fn firewall_ipv6_network_group_set(fw_group: &str, cidr: String) -> Vec<Cow<str>> {
+    let mut path = (*FW_IPV6_GROUP_PATH_SET).clone();
     path[3] = fw_group.into();
     path[5] = cidr.into();
     path
@@ -115,8 +131,15 @@ impl<'a> NetSet<'a> {
     ) -> Vec<VyosConfigCommand> {
         self.0
             .iter()
-            .map(|net| {
-                VyosConfigCommand::new(op, firewall_network_group(firewall_group, net.to_string()))
+            .map(|net| match net {
+                IpNet::V4(ip4) => VyosConfigCommand::new(
+                    op,
+                    firewall_network_group_set(firewall_group, ip4.to_string()),
+                ),
+                IpNet::V6(ip6) => VyosConfigCommand::new(
+                    op,
+                    firewall_ipv6_network_group_set(firewall_group, ip6.to_string()),
+                ),
             })
             .collect()
     }
@@ -128,17 +151,19 @@ mod tests {
 
     #[test]
     fn serialize_commands() {
-        let list = vec![
+        let add = vec![
             "127.0.0.1/32".parse().unwrap(),
-            "127.0.0.2/32".parse().unwrap(),
+            "fd00::1/128".parse().unwrap(),
         ];
-        let netset = NetSet(&list);
+        let delete = vec!["127.0.0.2/32".parse().unwrap()];
+        let add = NetSet(&add);
+        let delete = NetSet(&delete);
 
-        let actual =
-            serde_json::to_string(&netset.into_vyos_commands(VyosConfigOperation::Set, "group"))
-                .unwrap();
+        let mut commands = add.into_vyos_commands(VyosConfigOperation::Set, "crowdsec");
+        commands.append(&mut delete.into_vyos_commands(VyosConfigOperation::Delete, "crowdsec"));
+        let actual = serde_json::to_string(&commands).unwrap();
 
-        let expected = r#"[{"op":"set","path":["firewall","group","network-group","group","network","127.0.0.1/32"]},{"op":"set","path":["firewall","group","network-group","group","network","127.0.0.2/32"]}]"#;
+        let expected = r#"[{"op":"set","path":["firewall","group","network-group","crowdsec","network","127.0.0.1/32"]},{"op":"set","path":["firewall","group","ipv6-network-group","crowdsec","network","fd00::1/128"]},{"op":"delete","path":["firewall","group","network-group","crowdsec","network","127.0.0.2/32"]}]"#;
 
         assert_eq!(actual, expected);
     }

@@ -31,7 +31,10 @@ pub async fn update_firewall(
     const BATCH_SIZE: usize = 15000;
     for (idx, batch) in commands.chunks(BATCH_SIZE).enumerate() {
         info!("Setting batch {} {}", idx + 1, batch.len());
-        vyos_api.set_firewall_groups(batch, timeout, true).await?;
+        vyos_api.set_firewall_groups(batch, timeout).await?;
+        vyos_api
+            .save_config(VyosSaveCommand::default(), timeout)
+            .await?;
     }
     info!(
         added = decision_ips.new.len(),

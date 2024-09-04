@@ -282,20 +282,20 @@ mod test {
     fn filter_added_decisions() {
         let decisions = DecisionsIpRange {
             new: IpRangeMixed {
-                v4: ipv4_range(["192.168.0.1/32", "192.168.0.2/32"]),
+                v4: ipv4_range(["192.168.1.2/32", "192.168.0.2/32"]),
                 v6: ipv6_range(["fd00::1/128", "fd00::2/128"]),
             },
             deleted: Default::default(),
         };
         let filter = IpRangeMixed {
-            v4: ipv4_range(["192.168.0.1/32"]),
+            v4: ipv4_range(["192.168.1.1/32"]),
             v6: ipv6_range(["fd00::1/128"]),
         };
 
         let actual = decisions.filter_new(&filter);
 
         let expected = IpRangeMixed {
-            v4: ipv4_range(["192.168.0.2/32"]),
+            v4: ipv4_range(["192.168.0.2/32", "192.168.1.2/32"]),
             v6: ipv6_range(["fd00::2/128"]),
         };
 
