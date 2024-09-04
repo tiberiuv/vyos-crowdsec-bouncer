@@ -4,6 +4,8 @@ use iprange::IpRange;
 use std::net::IpAddr;
 use std::sync::Arc;
 
+use crate::metrics::FIREWALL_BLOCKED_IPS;
+
 #[derive(Debug, Default)]
 pub struct BlacklistCache(pub ArcSwap<IpRangeMixed>);
 
@@ -14,6 +16,12 @@ impl BlacklistCache {
     pub fn store(&self, blacklist: IpRangeMixed) {
         let mut blacklist = blacklist;
         blacklist.simplify();
+
+        let ipv4 = blacklist.v4.into_iter().count() as i64;
+        let ipv6 = blacklist.v6.into_iter().count() as i64;
+        FIREWALL_BLOCKED_IPS.with_label_values(&["ipv4"]).set(ipv4);
+        FIREWALL_BLOCKED_IPS.with_label_values(&["ipv6"]).set(ipv6);
+
         self.0.store(Arc::new(blacklist));
     }
     pub fn load(&self) -> Arc<IpRangeMixed> {

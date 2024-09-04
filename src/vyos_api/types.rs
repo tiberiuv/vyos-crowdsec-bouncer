@@ -57,7 +57,7 @@ pub enum VyosGetOperation {
     ReturnValues,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct VyosCommandResponse<T> {
     pub success: bool,
     pub data: T,
