@@ -21,7 +21,6 @@ pub async fn store_existing_blacklist(app: &App) -> Result<(), anyhow::Error> {
 
 pub async fn do_iteration(
     app: &App,
-    trusted_ips: &IpRangeMixed,
     decision_options: &DecisionsOptions,
 ) -> Result<(), anyhow::Error> {
     info!("Fetching decisions");
@@ -34,7 +33,7 @@ pub async fn do_iteration(
 
     let blacklist = app.blacklist.load();
     let decision_ips = DecisionsIpRange::from(new_decisions)
-        .filter_new(trusted_ips)
+        .filter_new(&app.config.trusted_ips)
         .filter_new(blacklist.as_ref())
         .filter_deleted(blacklist.as_ref());
 
@@ -65,16 +64,15 @@ pub async fn do_iteration(
 
 pub async fn main_loop(app: App) -> Result<(), anyhow::Error> {
     info!("Starting main loop, fetching decisions...");
-    let trusted_ips = IpRangeMixed::from(app.config.trusted_ips.clone());
     let mut decisions_options = DecisionsOptions::new(&DEFAULT_DECISION_ORIGINS, true);
 
-    retry_op(5, || do_iteration(&app, &trusted_ips, &decisions_options)).await?;
+    retry_op(5, || do_iteration(&app, &decisions_options)).await?;
 
     decisions_options.set_startup(false);
     loop {
         tokio::time::sleep(Duration::from_secs(app.config.update_frequency_secs)).await;
 
-        retry_op(10, || do_iteration(&app, &trusted_ips, &decisions_options)).await?
+        retry_op(10, || do_iteration(&app, &decisions_options)).await?
     }
 }
 
@@ -126,15 +124,15 @@ mod tests {
         lapi_mock: ServerGuard,
         vyos_mock: ServerGuard,
     }
-    async fn mock_app(apikey: String) -> TestApp {
+    async fn mock_app(apikey: &str) -> TestApp {
         let lapi_mock = Server::new_async().await;
         let vyos_mock = Server::new_async().await;
         let app = App {
-            lapi: lapi_client(apikey.clone(), &lapi_mock),
-            vyos: vyos_client(apikey, &vyos_mock),
+            lapi: lapi_client(apikey.to_string(), &lapi_mock),
+            vyos: vyos_client(apikey.to_string(), &vyos_mock),
             config: Config {
                 firewall_group: String::from("group"),
-                trusted_ips: vec![],
+                trusted_ips: IpRangeMixed::default(),
                 update_frequency_secs: 1,
             },
             blacklist: crate::BlacklistCache::default(),
@@ -149,15 +147,15 @@ mod tests {
 
     #[tokio::test]
     async fn iteration_sucessful() {
-        let apikey = String::from("test_key");
-        let mut test_app = mock_app(apikey.clone()).await;
+        let apikey = "test_key";
+        let mut test_app = mock_app(apikey).await;
 
         let add_ips = ["127.0.0.1/32", "127.0.0.2", "junk"];
         let initial_decisions = mock_decisions(add_ips, []);
         let lapi_stream = test_app
             .lapi_mock
             .mock("GET", "/v1/decisions/stream?startup=true")
-            .match_header("apikey", "test_key")
+            .match_header("apikey", apikey)
             .with_body(serde_json::to_vec(&initial_decisions).expect("valid json"))
             .with_status(200)
             .create();
@@ -180,7 +178,7 @@ mod tests {
             startup: true,
             ..Default::default()
         };
-        let result = do_iteration(&test_app.app, &IpRangeMixed::default(), &decision_options).await;
+        let result = do_iteration(&test_app.app, &decision_options).await;
         assert!(result.is_ok());
         lapi_stream.assert();
         retrieve.assert();
@@ -199,7 +197,7 @@ mod tests {
         let lapi_stream = test_app
             .lapi_mock
             .mock("GET", "/v1/decisions/stream?startup=false")
-            .match_header("apikey", "test_key")
+            .match_header("apikey", apikey)
             .with_body(serde_json::to_vec(&next_decisions).expect("valid json"))
             .with_status(200)
             .create();
@@ -214,7 +212,7 @@ mod tests {
             .with_body("{}")
             .with_status(200)
             .create();
-        let result = do_iteration(&test_app.app, &IpRangeMixed::default(), &decision_options).await;
+        let result = do_iteration(&test_app.app, &decision_options).await;
         assert!(result.is_ok());
         lapi_stream.assert();
         config.assert();
@@ -230,15 +228,15 @@ mod tests {
 
     #[tokio::test]
     async fn no_update_if_present_in_cache() {
-        let apikey = String::from("test_key");
-        let mut test_app = mock_app(apikey.clone()).await;
+        let apikey = "test_key";
+        let mut test_app = mock_app(apikey).await;
 
         let add_ips = ["127.0.0.1/32"];
         let initial_decisions = mock_decisions(add_ips, []);
         let lapi_stream = test_app
             .lapi_mock
             .mock("GET", "/v1/decisions/stream?startup=true")
-            .match_header("apikey", "test_key")
+            .match_header("apikey", apikey)
             .with_body(serde_json::to_vec(&initial_decisions).expect("valid json"))
             .with_status(200)
             .create();
@@ -263,10 +261,45 @@ mod tests {
             ..Default::default()
         };
 
-        let result = do_iteration(&test_app.app, &IpRangeMixed::default(), &decision_options).await;
+        let result = do_iteration(&test_app.app, &decision_options).await;
         assert!(result.is_ok());
         lapi_stream.assert();
         retrieve.assert();
+        config.assert();
+    }
+
+    #[tokio::test]
+    async fn no_update_for_whitelisted_nets() {
+        let apikey = "test_key";
+        let mut test_app = mock_app(apikey).await;
+        test_app.app.config.trusted_ips = vec!["127.0.0.1/32".parse().unwrap()].into();
+
+        let add_ips = ["127.0.0.1/32"];
+        let initial_decisions = mock_decisions(add_ips, []);
+        let lapi_stream = test_app
+            .lapi_mock
+            .mock("GET", "/v1/decisions/stream?startup=false")
+            .match_header("apikey", apikey)
+            .with_body(serde_json::to_vec(&initial_decisions).expect("valid json"))
+            .with_status(200)
+            .create();
+
+        // No call to update firewall since the subnet is whitelisted
+        let config = test_app
+            .vyos_mock
+            .mock("POST", "/configure")
+            .with_body("{}")
+            .with_status(200)
+            .expect(0)
+            .create();
+        let decision_options = DecisionsOptions {
+            startup: false,
+            ..Default::default()
+        };
+
+        let result = do_iteration(&test_app.app, &decision_options).await;
+        assert!(dbg!(result).is_ok());
+        lapi_stream.assert();
         config.assert();
     }
 }
