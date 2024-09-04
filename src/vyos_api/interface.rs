@@ -1,10 +1,8 @@
 use std::time::Duration;
 
-use std::future::Future;
-
 use ipnet::IpNet;
 
-use super::types::{IpSet, VyosCommandResponse, VyosConfigCommand};
+use super::types::{VyosCommandResponse, VyosConfigCommand};
 
 #[allow(async_fn_in_trait)]
 pub trait VyosApi {
@@ -18,14 +16,4 @@ pub trait VyosApi {
         &self,
         group_name: &str,
     ) -> Result<VyosCommandResponse<Vec<IpNet>>, anyhow::Error>;
-    fn ban_ips<'a>(
-        &self,
-        fw_group_name: &str,
-        ips: IpSet<'a>,
-    ) -> impl Future<Output = Result<serde_json::Value, anyhow::Error>>;
-    fn remove_ip_ban<'a>(
-        &self,
-        fw_group_name: &str,
-        ips: IpSet<'a>,
-    ) -> impl Future<Output = Result<serde_json::Value, anyhow::Error>>;
 }
