@@ -81,7 +81,7 @@ mod tests {
     use crate::blacklist::IpRangeMixed;
     use crate::crowdsec_lapi::types::{CrowdsecAuth, Decision, DecisionsResponse, Scope};
     use crate::crowdsec_lapi::{CrowdsecLapiClient, DecisionsOptions};
-    use crate::vyos_api::VyosClient;
+    use crate::vyos_api::{VyosClient, VyosCommandResponse};
     use crate::Config;
 
     use super::{do_iteration, App};
@@ -169,7 +169,14 @@ mod tests {
         let retrieve = test_app
             .vyos_mock
             .mock("POST", "/retrieve")
-            .with_body("{\"success\": true, \"data\": []}")
+            .with_body(
+                serde_json::to_string(&VyosCommandResponse {
+                    success: true,
+                    data: Vec::<()>::new(),
+                    error: None,
+                })
+                .unwrap(),
+            )
             .with_status(200)
             .expect(2)
             .create();
@@ -254,7 +261,14 @@ mod tests {
         let retrieve = test_app
             .vyos_mock
             .mock("POST", "/retrieve")
-            .with_body("{\"success\": true, \"data\": [\"127.0.0.1/31\"]}")
+            .with_body(
+                serde_json::to_string(&VyosCommandResponse {
+                    success: true,
+                    data: add_ips,
+                    error: None,
+                })
+                .unwrap(),
+            )
             .with_status(200)
             .expect(2)
             .create();
@@ -309,7 +323,7 @@ mod tests {
         };
 
         let result = do_iteration(&test_app.app, &decision_options).await;
-        assert!(dbg!(result).is_ok());
+        assert!(result.is_ok());
         lapi_stream.assert();
         config.assert();
     }
