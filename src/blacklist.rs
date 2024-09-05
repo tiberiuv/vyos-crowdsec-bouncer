@@ -40,7 +40,7 @@ impl IpRangeMixed {
         self.v4.is_empty() && self.v6.is_empty()
     }
 
-    pub fn simplify(&mut self) {
+    fn simplify(&mut self) {
         self.v4.simplify();
         self.v6.simplify();
     }
@@ -86,16 +86,11 @@ impl IpRangeMixed {
 impl From<Vec<IpNet>> for IpRangeMixed {
     fn from(value: Vec<IpNet>) -> Self {
         let (allow_list_v4, allow_list_v6) = split_nets(value);
-        let allow_list_v4 = iprange::IpRange::from_iter(allow_list_v4);
-        let allow_list_v6 = iprange::IpRange::from_iter(allow_list_v6);
 
-        let mut slf = Self {
-            v4: allow_list_v4,
-            v6: allow_list_v6,
-        };
-        slf.simplify();
-
-        slf
+        Self {
+            v4: iprange::IpRange::from_iter(allow_list_v4),
+            v6: iprange::IpRange::from_iter(allow_list_v6),
+        }
     }
 }
 

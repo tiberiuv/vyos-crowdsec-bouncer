@@ -1,8 +1,8 @@
 use clap::Parser;
 use tracing::info;
 use vyos_crowdsec_bouncer::cli::Cli;
+use vyos_crowdsec_bouncer::control_loop::reconcile;
 use vyos_crowdsec_bouncer::crowdsec_lapi::CrowdsecLapiClient;
-use vyos_crowdsec_bouncer::main_loop::main_loop;
 use vyos_crowdsec_bouncer::prometheus::Prometheus;
 use vyos_crowdsec_bouncer::tracing_setup::{get_subscriber, init_subscriber};
 use vyos_crowdsec_bouncer::vyos_api::VyosClient;
@@ -30,7 +30,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let metrics = metrics.serve();
 
     let mut task_set = tokio::task::JoinSet::new();
-    task_set.spawn(async { main_loop(app).await });
+    task_set.spawn(async { reconcile(app).await });
     task_set.spawn(async { Ok(metrics.await?) });
 
     while let Some(res) = task_set.join_next().await {

@@ -108,13 +108,13 @@ pub fn ipv6_group_get(fw_group: &str) -> VyosGetCommand {
     VyosGetCommand::new(path)
 }
 
-fn firewall_network_group_set(fw_group: &str, cidr: String) -> Vec<Cow<str>> {
+fn ipv4_group_set(fw_group: &str, cidr: String) -> Vec<Cow<str>> {
     let mut path = (*FW_GROUP_PATH_SET).clone();
     path[3] = fw_group.into();
     path[5] = cidr.into();
     path
 }
-fn firewall_ipv6_network_group_set(fw_group: &str, cidr: String) -> Vec<Cow<str>> {
+fn ipv6_group_set(fw_group: &str, cidr: String) -> Vec<Cow<str>> {
     let mut path = (*FW_IPV6_GROUP_PATH_SET).clone();
     path[3] = fw_group.into();
     path[5] = cidr.into();
@@ -132,14 +132,12 @@ impl<'a> NetSet<'a> {
         self.0
             .iter()
             .map(|net| match net {
-                IpNet::V4(ip4) => VyosConfigCommand::new(
-                    op,
-                    firewall_network_group_set(firewall_group, ip4.to_string()),
-                ),
-                IpNet::V6(ip6) => VyosConfigCommand::new(
-                    op,
-                    firewall_ipv6_network_group_set(firewall_group, ip6.to_string()),
-                ),
+                IpNet::V4(ip4) => {
+                    VyosConfigCommand::new(op, ipv4_group_set(firewall_group, ip4.to_string()))
+                }
+                IpNet::V6(ip6) => {
+                    VyosConfigCommand::new(op, ipv6_group_set(firewall_group, ip6.to_string()))
+                }
             })
             .collect()
     }

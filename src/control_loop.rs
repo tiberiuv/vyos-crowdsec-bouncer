@@ -19,7 +19,7 @@ pub async fn store_existing_blacklist(app: &App) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-pub async fn do_iteration(
+pub async fn reconcile_decisions(
     app: &App,
     decision_options: &DecisionsOptions,
 ) -> Result<(), anyhow::Error> {
@@ -62,17 +62,17 @@ pub async fn do_iteration(
     Ok(())
 }
 
-pub async fn main_loop(app: App) -> Result<(), anyhow::Error> {
+pub async fn reconcile(app: App) -> Result<(), anyhow::Error> {
     info!("Starting main loop, fetching decisions...");
     let mut decisions_options = DecisionsOptions::new(&DEFAULT_DECISION_ORIGINS, true);
 
-    retry_op(5, || do_iteration(&app, &decisions_options)).await?;
+    retry_op(5, || reconcile_decisions(&app, &decisions_options)).await?;
 
     decisions_options.set_startup(false);
     loop {
         tokio::time::sleep(Duration::from_secs(app.config.update_frequency_secs)).await;
 
-        retry_op(10, || do_iteration(&app, &decisions_options)).await?
+        retry_op(10, || reconcile_decisions(&app, &decisions_options)).await?
     }
 }
 
@@ -84,7 +84,7 @@ mod tests {
     use crate::vyos_api::{VyosClient, VyosCommandResponse};
     use crate::Config;
 
-    use super::{do_iteration, App};
+    use super::{reconcile_decisions, App};
     use iprange::IpRange;
     use mockito::{Mock, Server, ServerGuard};
 
@@ -193,7 +193,7 @@ mod tests {
             startup: true,
             ..Default::default()
         };
-        let result = do_iteration(&test_app.app, &decision_options).await;
+        let result = reconcile_decisions(&test_app.app, &decision_options).await;
         assert!(result.is_ok());
         lapi_stream.assert();
         retrieve.assert();
@@ -229,18 +229,14 @@ mod tests {
             .with_status(200)
             .create();
         let save = mock_save_command(&mut test_app.vyos_mock);
-        let result = do_iteration(&test_app.app, &decision_options).await;
+        let result = reconcile_decisions(&test_app.app, &decision_options).await;
         assert!(result.is_ok());
         lapi_stream.assert();
         config.assert();
         save.assert();
         assert_eq!(
-            test_app.app.blacklist.load().v4,
-            IpRange::from_iter(
-                ["127.0.0.2/32", "127.0.0.3/32"]
-                    .into_iter()
-                    .map(|x| x.parse().unwrap())
-            )
+            test_app.app.blacklist.load().v4.clone(),
+            IpRange::from_iter(["127.0.0.2/31"].into_iter().map(|x| x.parse().unwrap()))
         );
     }
 
@@ -286,7 +282,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = do_iteration(&test_app.app, &decision_options).await;
+        let result = reconcile_decisions(&test_app.app, &decision_options).await;
         assert!(result.is_ok());
         lapi_stream.assert();
         retrieve.assert();
@@ -322,7 +318,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = do_iteration(&test_app.app, &decision_options).await;
+        let result = reconcile_decisions(&test_app.app, &decision_options).await;
         assert!(result.is_ok());
         lapi_stream.assert();
         config.assert();
