@@ -235,12 +235,8 @@ mod tests {
         config.assert();
         save.assert();
         assert_eq!(
-            test_app.app.blacklist.load().v4,
-            IpRange::from_iter(
-                ["127.0.0.2/32", "127.0.0.3/32"]
-                    .into_iter()
-                    .map(|x| x.parse().unwrap())
-            )
+            test_app.app.blacklist.load().v4.clone(),
+            IpRange::from_iter(["127.0.0.2/31"].into_iter().map(|x| x.parse().unwrap()))
         );
     }
 

@@ -81,20 +81,21 @@ pub struct Decision {
     pub value: String,
 }
 
-impl Decision {
-    fn try_into_net(&self) -> Result<ipnet::IpNet, anyhow::Error> {
-        if let Some(until) = self.until {
+impl TryFrom<&Decision> for ipnet::IpNet {
+    type Error = anyhow::Error;
+    fn try_from(decision: &Decision) -> Result<Self, Self::Error> {
+        if let Some(until) = decision.until {
             let now = chrono::Utc::now();
             if until < now {
                 return Err(anyhow!("decision skipped due to 'until' in the future"));
             }
         }
-        match self.scope {
-            Scope::Ip => Ok(match self.value.parse::<IpAddr>()? {
+        match decision.scope {
+            Scope::Ip => Ok(match decision.value.parse::<IpAddr>()? {
                 IpAddr::V4(v4) => IpNet::V4(Ipv4Net::new(v4, 32)?),
                 IpAddr::V6(v6) => IpNet::V6(Ipv6Net::new(v6, 128)?),
             }),
-            Scope::Range => Ok(self.value.parse::<IpNet>()?),
+            Scope::Range => Ok(decision.value.parse::<IpNet>()?),
             Scope::Other(ref scope) => Err(anyhow!("Unhadled scope '{}'", scope)),
         }
     }
@@ -110,14 +111,15 @@ fn parse_crowdsec_decisions(decisions: Option<Vec<Decision>>) -> Vec<IpNet> {
     let (to_add, errors): (Vec<_>, Vec<_>) = decisions
         .unwrap_or_default()
         .iter()
-        .map(Decision::try_into_net)
-        .partition(|x| x.is_ok());
+        .map(TryFrom::try_from)
+        .partition(Result::is_ok);
     if !errors.is_empty() {
         let errors: Vec<anyhow::Error> = errors.into_iter().map(|ip| ip.unwrap_err()).collect();
         error!(msg = "Error parsing ips from crowdsec decisions", ?errors);
     }
     to_add.into_iter().map(|ip| ip.unwrap()).collect()
 }
+
 impl From<DecisionsResponse> for DecisionsIpRange {
     fn from(value: DecisionsResponse) -> Self {
         Self {
@@ -127,7 +129,7 @@ impl From<DecisionsResponse> for DecisionsIpRange {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DecisionsIpRange {
     pub new: IpRangeMixed,
     pub deleted: IpRangeMixed,
@@ -149,30 +151,9 @@ impl DecisionsIpRange {
             deleted: self.deleted.intersect(filter),
         }
     }
-}
 
-#[derive(Debug)]
-pub struct DecisionsIps {
-    pub new: Vec<IpAddr>,
-    pub deleted: Vec<IpAddr>,
-}
-
-#[derive(Debug)]
-pub struct DecisionsNets {
-    pub new: Vec<IpNet>,
-    pub deleted: Vec<IpNet>,
-}
-
-impl DecisionsIpRange {
     pub fn is_empty(&self) -> bool {
         self.new.is_empty() && self.deleted.is_empty()
-    }
-
-    pub fn into_ips(&self) -> DecisionsIps {
-        DecisionsIps {
-            new: self.new.into_ips(),
-            deleted: self.deleted.into_ips(),
-        }
     }
 
     pub fn into_nets(&self) -> DecisionsNets {
@@ -181,6 +162,12 @@ impl DecisionsIpRange {
             deleted: self.deleted.into_nets(),
         }
     }
+}
+
+#[derive(Debug)]
+pub struct DecisionsNets {
+    pub new: Vec<IpNet>,
+    pub deleted: Vec<IpNet>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
