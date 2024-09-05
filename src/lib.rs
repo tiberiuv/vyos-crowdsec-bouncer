@@ -1,7 +1,7 @@
 pub mod blacklist;
 pub mod cli;
+pub mod control_loop;
 pub mod crowdsec_lapi;
-pub mod main_loop;
 pub mod metrics;
 pub mod prometheus;
 pub mod tracing_setup;
