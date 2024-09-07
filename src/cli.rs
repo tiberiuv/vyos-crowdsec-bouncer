@@ -22,6 +22,9 @@ pub struct Cli {
     #[arg(long, env = "VYOS_API")]
     pub vyos_api: Url,
 
+    #[arg(long, env = "CROWDSEC_TIMEOUT", default_value = "10")]
+    pub crowdsec_timeout: u64,
+
     #[arg(long, env = "FIREWALL_GROUP", default_value = "CROWDSEC_BOUNCER")]
     pub firewall_group: String,
 

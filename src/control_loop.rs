@@ -90,7 +90,11 @@ mod tests {
 
     fn lapi_client(apikey: String, mock: &Server) -> CrowdsecLapiClient {
         let url = format!("http://{}", mock.host_with_port());
-        CrowdsecLapiClient::new(url.parse().unwrap(), CrowdsecAuth::Apikey(apikey))
+        CrowdsecLapiClient::new(
+            url.parse().unwrap(),
+            CrowdsecAuth::Apikey(apikey),
+            std::time::Duration::from_secs(1),
+        )
     }
 
     fn vyos_client(apikey: String, mock: &Server) -> VyosClient {

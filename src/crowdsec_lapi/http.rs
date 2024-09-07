@@ -19,10 +19,10 @@ pub struct CrowdsecLapiClient {
 }
 
 impl CrowdsecLapiClient {
-    pub fn new(host: Url, auth: CrowdsecAuth) -> Self {
+    pub fn new(host: Url, auth: CrowdsecAuth, timeout: Duration) -> Self {
         let builder = Client::builder()
-            .timeout(Duration::from_secs(5))
-            .connect_timeout(Duration::from_secs(2))
+            .timeout(timeout)
+            .connect_timeout(Duration::from_secs(3))
             .user_agent(USER_AGENT);
         let client = match auth.clone() {
             CrowdsecAuth::Apikey(apikey) => {
