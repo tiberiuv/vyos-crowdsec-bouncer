@@ -62,6 +62,8 @@ impl IpRangeMixed {
             .collect()
     }
 
+    /// Returns a new `IpRangeMixed` which contains all networks
+    /// that are in `self` while not in `other`.
     pub fn exclude(&self, other: &IpRangeMixed) -> Self {
         Self {
             v4: self.v4.exclude(&other.v4),
@@ -69,6 +71,8 @@ impl IpRangeMixed {
         }
     }
 
+    /// Returns a new `IpRangeMixed` which contains all networks
+    /// that are in `self` or in `other`.
     pub fn merge(&self, other: &IpRangeMixed) -> Self {
         Self {
             v4: self.v4.merge(&other.v4),
@@ -76,6 +80,8 @@ impl IpRangeMixed {
         }
     }
 
+    /// Returns a new `IpRangeMixed` which contains all networks
+    /// that are in both `self` and `other`.
     pub fn intersect(&self, other: &IpRangeMixed) -> Self {
         Self {
             v4: self.v4.intersect(&other.v4),

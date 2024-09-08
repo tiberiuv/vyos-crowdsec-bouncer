@@ -65,14 +65,13 @@ pub async fn reconcile_decisions(
 pub async fn reconcile(app: App) -> Result<(), anyhow::Error> {
     info!("Starting main loop, fetching decisions...");
     let mut decisions_options = DecisionsOptions::new(&DEFAULT_DECISION_ORIGINS, true);
-
-    retry_op(5, || reconcile_decisions(&app, &decisions_options)).await?;
-
-    decisions_options.set_startup(false);
     loop {
-        tokio::time::sleep(Duration::from_secs(app.config.update_frequency_secs)).await;
+        retry_op(10, || reconcile_decisions(&app, &decisions_options)).await?;
 
-        retry_op(10, || reconcile_decisions(&app, &decisions_options)).await?
+        tokio::time::sleep(Duration::from_secs(app.config.update_frequency_secs)).await;
+        if decisions_options.get_startup() {
+            decisions_options.set_startup(false);
+        }
     }
 }
 
