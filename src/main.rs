@@ -18,6 +18,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let lapi = CrowdsecLapiClient::new(
         args.crowdsec_api.clone(),
         TryFrom::try_from(args.auth.clone())?,
+        std::time::Duration::from_secs(args.crowdsec_timeout),
     );
     let vyos_api = VyosClient::new(args.vyos_api.clone(), args.vyos_apikey.clone());
     let config = Config {
