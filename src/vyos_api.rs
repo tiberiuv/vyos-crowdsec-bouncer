@@ -2,8 +2,6 @@ mod http;
 mod interface;
 mod types;
 
-use std::time::Duration;
-
 use tracing::{debug, info, instrument};
 
 pub use http::VyosClient;
@@ -21,7 +19,7 @@ pub async fn update_firewall(
     vyos_api: &VyosClient,
     decisions_ip_range: &DecisionsIpRange,
     firewall_group: &str,
-    timeout: Option<Duration>,
+    timeout: Option<std::time::Duration>,
 ) -> Result<(), anyhow::Error> {
     let decision_ips = decisions_ip_range.into_nets();
     debug!(msg = "Updating firewall groups", ?decision_ips);

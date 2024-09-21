@@ -14,7 +14,10 @@ pub struct Cli {
     pub trusted_ips: Option<Vec<IpNet>>,
 
     #[arg(long, env = "UPDATE_FREQUENCY_SECS", default_value = "60")]
-    pub update_frequency_secs: u64,
+    pub update_period_secs: u64,
+
+    #[arg(long, default_value = "3600")]
+    pub full_update_period_secs: u64,
 
     #[arg(long, env = "VYOS_APIKEY")]
     pub vyos_apikey: String,
