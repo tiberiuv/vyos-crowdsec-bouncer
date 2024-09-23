@@ -14,7 +14,7 @@ pub use types::{
 use crate::crowdsec_lapi::types::DecisionsIpRange;
 use crate::metrics::VYOS_COMMANDS_SENT_COUNTER;
 
-#[instrument(skip(vyos_api))]
+#[instrument(skip(vyos_api, decisions_ip_range))]
 pub async fn update_firewall(
     vyos_api: &VyosClient,
     decisions_ip_range: &DecisionsIpRange,
