@@ -1,4 +1,3 @@
-use std::time::Duration;
 use tracing::{error, info};
 
 use crate::blacklist::IpRangeMixed;
@@ -42,7 +41,7 @@ pub async fn reconcile_decisions(
             &app.vyos,
             &decision_ips,
             &app.config.firewall_group,
-            Some(Duration::from_secs(60 * 5)),
+            Some(std::time::Duration::from_secs(60 * 5)),
         )
         .await
         {
@@ -65,10 +64,16 @@ pub async fn reconcile_decisions(
 pub async fn reconcile(app: App) -> Result<(), anyhow::Error> {
     info!("Starting main loop, fetching decisions...");
     let mut decisions_options = DecisionsOptions::new(&DEFAULT_DECISION_ORIGINS, true);
+    let mut start = std::time::Instant::now();
     loop {
+        if start.elapsed() > app.config.full_update_period {
+            decisions_options.set_startup(true);
+            start = std::time::Instant::now();
+        }
+
         retry_op(10, || reconcile_decisions(&app, &decisions_options)).await?;
 
-        tokio::time::sleep(Duration::from_secs(app.config.update_frequency_secs)).await;
+        tokio::time::sleep(app.config.update_period).await;
         if decisions_options.get_startup() {
             decisions_options.set_startup(false);
         }
@@ -143,7 +148,8 @@ mod tests {
             config: Config {
                 firewall_group: String::from("group"),
                 trusted_ips: IpRangeMixed::default(),
-                update_frequency_secs: 1,
+                update_period: std::time::Duration::from_secs(1),
+                full_update_period: std::time::Duration::from_secs(5),
             },
             blacklist: crate::BlacklistCache::default(),
         };
