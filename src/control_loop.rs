@@ -64,13 +64,7 @@ pub async fn reconcile_decisions(
 pub async fn reconcile(app: App) -> Result<(), anyhow::Error> {
     info!("Starting main loop, fetching decisions...");
     let mut decisions_options = DecisionsOptions::new(&DEFAULT_DECISION_ORIGINS, true);
-    let mut start = std::time::Instant::now();
     loop {
-        if start.elapsed() > app.config.full_update_period {
-            decisions_options.set_startup(true);
-            start = std::time::Instant::now();
-        }
-
         retry_op(10, || reconcile_decisions(&app, &decisions_options)).await?;
 
         tokio::time::sleep(app.config.update_period).await;
@@ -149,7 +143,6 @@ mod tests {
                 firewall_group: String::from("group"),
                 trusted_ips: IpRangeMixed::default(),
                 update_period: std::time::Duration::from_secs(1),
-                full_update_period: std::time::Duration::from_secs(5),
             },
             blacklist: crate::BlacklistCache::default(),
         };

@@ -2,7 +2,7 @@ mod http;
 mod interface;
 mod types;
 
-use tracing::{debug, info, instrument};
+use tracing::{info, instrument};
 
 pub use http::VyosClient;
 pub use interface::VyosApi;
@@ -11,10 +11,10 @@ pub use types::{
     VyosSaveCommand,
 };
 
-use crate::crowdsec_lapi::types::DecisionsIpRange;
+use crate::crowdsec_lapi::types::{ipnets_for_log, DecisionsIpRange};
 use crate::metrics::VYOS_COMMANDS_SENT_COUNTER;
 
-#[instrument(skip(vyos_api))]
+#[instrument(skip(vyos_api, decisions_ip_range))]
 pub async fn update_firewall(
     vyos_api: &VyosClient,
     decisions_ip_range: &DecisionsIpRange,
@@ -22,7 +22,11 @@ pub async fn update_firewall(
     timeout: Option<std::time::Duration>,
 ) -> Result<(), anyhow::Error> {
     let decision_ips = decisions_ip_range.into_nets();
-    debug!(msg = "Updating firewall groups", ?decision_ips);
+    info!(
+        msg = "Updating firewall groups",
+        new = ipnets_for_log(&decision_ips.new),
+        delete = ipnets_for_log(&decision_ips.deleted),
+    );
 
     let mut commands =
         NetSet(&decision_ips.new).into_vyos_commands(VyosConfigOperation::Set, firewall_group);
