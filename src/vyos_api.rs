@@ -23,9 +23,9 @@ pub async fn update_firewall(
 ) -> Result<(), anyhow::Error> {
     let decision_ips = decisions_ip_range.into_nets();
     info!(
-        msg = "Updating firewall groups",
         new = ipnets_for_log(&decision_ips.new),
         delete = ipnets_for_log(&decision_ips.deleted),
+        "Updating firewall groups",
     );
 
     let mut commands =

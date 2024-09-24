@@ -45,7 +45,7 @@ pub async fn reconcile_decisions(
         )
         .await
         {
-            error!(msg = "Failed to update firewall", ?err);
+            error!(?err, "Failed to update firewall");
         } else {
             let new_blacklist = app
                 .blacklist

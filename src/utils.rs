@@ -32,11 +32,11 @@ where
             Ok(t) => return Ok(t),
             Err(err) if current_retries < retries => {
                 current_retries += 1;
-                tracing::error!(msg = "Failed iteration", ?err, retry = current_retries);
+                tracing::error!(?err, retry = current_retries, "Failed iteration");
                 tokio::time::sleep(exponential_backoff(current_retries, 1000)).await;
             }
             Err(err) => {
-                tracing::error!(msg = "Ran out of retries", ?err);
+                tracing::error!(?err, "Ran out of retries");
                 return Err(err);
             }
         }
