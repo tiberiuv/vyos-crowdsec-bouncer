@@ -115,7 +115,7 @@ fn parse_crowdsec_decisions(decisions: Option<Vec<Decision>>) -> Vec<IpNet> {
         .partition(Result::is_ok);
     if !errors.is_empty() {
         let errors: Vec<anyhow::Error> = errors.into_iter().map(|ip| ip.unwrap_err()).collect();
-        error!(msg = "Error parsing ips from crowdsec decisions", ?errors);
+        error!(?errors, msg = "Error parsing ips from crowdsec decisions");
     }
     to_add.into_iter().map(|ip| ip.unwrap()).collect()
 }

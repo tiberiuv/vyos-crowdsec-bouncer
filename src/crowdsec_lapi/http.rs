@@ -127,8 +127,8 @@ impl CrowdsecLAPI for CrowdsecLapiClient {
         let added = resp.new.as_ref().map(Vec::len).unwrap_or_default();
         let deleted = resp.deleted.as_ref().map(Vec::len).unwrap_or_default();
         info!(
-            msg = "Retrieved decisions",
-            added, deleted, decision_options.startup
+            added,
+            deleted, decision_options.startup, "Retrieved decisions",
         );
 
         OUTGOING_REQUESTS_COUNTER
