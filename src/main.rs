@@ -25,7 +25,6 @@ async fn main() -> Result<(), anyhow::Error> {
         firewall_group: args.firewall_group,
         trusted_ips: args.trusted_ips.map(From::from).unwrap_or_default(),
         update_period: std::time::Duration::from_secs(args.update_period_secs),
-        full_update_period: std::time::Duration::from_secs(args.full_update_period_secs),
     };
     let app = App::new(lapi, vyos_api, config);
     let metrics = Prometheus::new("127.0.0.1:3000".parse().unwrap());
