@@ -170,6 +170,14 @@ pub struct DecisionsNets {
     pub deleted: Vec<IpNet>,
 }
 
+pub fn ipnets_for_log<'a>(value: impl IntoIterator<Item = &'a IpNet>) -> String {
+    value
+        .into_iter()
+        .map(|x| x.to_string())
+        .collect::<Vec<String>>()
+        .join(" ")
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Operation {
