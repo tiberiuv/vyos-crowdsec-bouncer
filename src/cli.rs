@@ -28,6 +28,9 @@ pub struct Cli {
     #[arg(long, env = "FIREWALL_GROUP", default_value = "CROWDSEC_BOUNCER")]
     pub firewall_group: String,
 
+    #[arg(long, env = "VYOS_SAVE_CONFIG", default_value = "false")]
+    pub vyos_save_config: bool,
+
     #[arg(long, env = "CROWDSEC_API", default_value = "http://localhost:8080")]
     pub crowdsec_api: Url,
 

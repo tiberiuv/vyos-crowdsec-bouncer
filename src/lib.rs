@@ -27,6 +27,7 @@ pub struct Config {
     pub firewall_group: String,
     pub trusted_ips: IpRangeMixed,
     pub update_period: std::time::Duration,
+    pub vyos_save_config: bool,
 }
 
 impl App {

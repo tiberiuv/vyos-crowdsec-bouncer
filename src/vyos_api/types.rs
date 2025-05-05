@@ -123,7 +123,7 @@ fn ipv6_group_set(fw_group: &str, cidr: String) -> Vec<Cow<str>> {
 
 #[derive(Debug, Serialize)]
 pub struct NetSet<'a>(pub &'a [IpNet]);
-impl<'a> NetSet<'a> {
+impl NetSet<'_> {
     pub fn into_vyos_commands(
         self,
         op: VyosConfigOperation,

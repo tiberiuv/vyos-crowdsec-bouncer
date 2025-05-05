@@ -20,6 +20,7 @@ pub async fn update_firewall(
     decisions_ip_range: &DecisionsIpRange,
     firewall_group: &str,
     timeout: Option<std::time::Duration>,
+    save_changes: bool,
 ) -> Result<(), anyhow::Error> {
     let decision_ips = decisions_ip_range.into_nets();
     info!(
@@ -40,9 +41,9 @@ pub async fn update_firewall(
     for (idx, batch) in commands.chunks(BATCH_SIZE).enumerate() {
         info!("Setting batch {} {}", idx + 1, batch.len());
         vyos_api.set_firewall_groups(batch, timeout).await?;
-        vyos_api
-            .save_config(VyosSaveCommand::default(), timeout)
-            .await?;
+        if save_changes {
+            vyos_api.save_config(timeout).await?;
+        }
     }
     info!(
         added = decision_ips.new.len(),
