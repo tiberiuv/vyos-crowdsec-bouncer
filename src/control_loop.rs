@@ -42,6 +42,7 @@ pub async fn reconcile_decisions(
             &decision_ips,
             &app.config.firewall_group,
             Some(std::time::Duration::from_secs(60 * 5)),
+            app.config.vyos_save_config,
         )
         .await
         {
@@ -143,6 +144,7 @@ mod tests {
                 firewall_group: String::from("group"),
                 trusted_ips: IpRangeMixed::default(),
                 update_period: std::time::Duration::from_secs(1),
+                vyos_save_config: true,
             },
             blacklist: crate::BlacklistCache::default(),
         };

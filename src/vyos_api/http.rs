@@ -91,13 +91,9 @@ impl VyosApi for VyosClient {
             .inc();
         Ok(())
     }
-    #[instrument(skip(self, command, timeout))]
-    async fn save_config<'a>(
-        &self,
-        command: VyosSaveCommand,
-        timeout: Option<Duration>,
-    ) -> Result<(), anyhow::Error> {
-        self.send::<serde_json::Value, _>("/config-file", command, timeout)
+    #[instrument(skip(self, timeout))]
+    async fn save_config(&self, timeout: Option<Duration>) -> Result<(), anyhow::Error> {
+        self.send::<serde_json::Value, _>("/config-file", VyosSaveCommand::default(), timeout)
             .await?;
         OUTGOING_REQUESTS_COUNTER
             .with_label_values(&["VYOS", "/config-file"])
@@ -105,7 +101,7 @@ impl VyosApi for VyosClient {
         Ok(())
     }
     #[instrument(skip(self))]
-    async fn retrieve_firewall_network_groups<'a>(
+    async fn retrieve_firewall_network_groups(
         &self,
         group_name: &str,
     ) -> Result<VyosCommandResponse<Vec<IpNet>>, anyhow::Error> {
