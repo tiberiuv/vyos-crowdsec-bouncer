@@ -1,6 +1,4 @@
 FROM clux/muslrust:stable AS planner
-ARG REPOSTIORY
-
 RUN cargo install cargo-chef
 COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
@@ -21,6 +19,7 @@ RUN cargo build --bin vyos-crowdsec-bouncer --release --target x86_64-unknown-li
 
 # Need cacerts
 FROM gcr.io/distroless/static:nonroot
+ARG REPOSTIORY
 ENV REPOSITORY=$REPOSTIORY
 LABEL org.opencontainers.image.source=https://github.com/${REPOSITORY}
 COPY --from=builder --chown=nonroot:nonroot /volume/target/x86_64-unknown-linux-musl/release/vyos-crowdsec-bouncer /app/vyos-crowdsec-bouncer
