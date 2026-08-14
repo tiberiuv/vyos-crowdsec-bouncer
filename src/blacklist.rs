@@ -17,16 +17,20 @@ impl BlacklistCache {
         let mut blacklist = blacklist;
         blacklist.simplify();
 
-        let ipv4 = blacklist.v4.into_iter().count() as i64;
-        let ipv6 = blacklist.v6.into_iter().count() as i64;
-        FIREWALL_BLOCKED_IPS.with_label_values(&["ipv4"]).set(ipv4);
-        FIREWALL_BLOCKED_IPS.with_label_values(&["ipv6"]).set(ipv6);
+        blacklist_metrics(&blacklist);
 
         self.0.store(Arc::new(blacklist));
     }
     pub fn load(&self) -> Arc<IpRangeMixed> {
         self.0.load_full()
     }
+}
+
+fn blacklist_metrics(blacklist: &IpRangeMixed) {
+    let ipv4 = blacklist.v4.into_iter().count() as i64;
+    let ipv6 = blacklist.v6.into_iter().count() as i64;
+    FIREWALL_BLOCKED_IPS.with_label_values(&["ipv4"]).set(ipv4);
+    FIREWALL_BLOCKED_IPS.with_label_values(&["ipv6"]).set(ipv6);
 }
 
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
