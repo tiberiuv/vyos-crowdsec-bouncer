@@ -95,26 +95,26 @@ static FW_IPV6_GROUP_PATH_SET: LazyLock<Vec<Cow<str>>> = LazyLock::new(|| {
         .collect()
 });
 
-pub fn ipv4_group_get(fw_group: &str) -> VyosGetCommand {
+pub fn ipv4_group_get(fw_group: &str) -> VyosGetCommand<'_> {
     let mut path = FW_GROUP_PATH_GET.clone();
     path[3] = fw_group.into();
 
     VyosGetCommand::new(path)
 }
-pub fn ipv6_group_get(fw_group: &str) -> VyosGetCommand {
+pub fn ipv6_group_get(fw_group: &str) -> VyosGetCommand<'_> {
     let mut path = FW_IPV6_GROUP_PATH_GET.clone();
     path[3] = fw_group.into();
 
     VyosGetCommand::new(path)
 }
 
-fn ipv4_group_set(fw_group: &str, cidr: String) -> Vec<Cow<str>> {
+fn ipv4_group_set(fw_group: &str, cidr: String) -> Vec<Cow<'_, str>> {
     let mut path = (*FW_GROUP_PATH_SET).clone();
     path[3] = fw_group.into();
     path[5] = cidr.into();
     path
 }
-fn ipv6_group_set(fw_group: &str, cidr: String) -> Vec<Cow<str>> {
+fn ipv6_group_set(fw_group: &str, cidr: String) -> Vec<Cow<'_, str>> {
     let mut path = (*FW_IPV6_GROUP_PATH_SET).clone();
     path[3] = fw_group.into();
     path[5] = cidr.into();
@@ -128,7 +128,7 @@ impl NetSet<'_> {
         self,
         op: VyosConfigOperation,
         firewall_group: &str,
-    ) -> Vec<VyosConfigCommand> {
+    ) -> Vec<VyosConfigCommand<'_>> {
         self.0
             .iter()
             .map(|net| match net {

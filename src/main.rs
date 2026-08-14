@@ -1,10 +1,12 @@
 use clap::Parser;
+use reqwest::Certificate;
 use tracing::info;
 use vyos_crowdsec_bouncer::cli::Cli;
 use vyos_crowdsec_bouncer::control_loop::reconcile;
 use vyos_crowdsec_bouncer::crowdsec_lapi::CrowdsecLapiClient;
 use vyos_crowdsec_bouncer::prometheus::Prometheus;
 use vyos_crowdsec_bouncer::tracing_setup::{get_subscriber, init_subscriber};
+use vyos_crowdsec_bouncer::utils::read_file;
 use vyos_crowdsec_bouncer::vyos_api::VyosClient;
 use vyos_crowdsec_bouncer::{App, Config};
 
@@ -20,7 +22,18 @@ async fn main() -> Result<(), anyhow::Error> {
         TryFrom::try_from(args.auth.clone())?,
         std::time::Duration::from_secs(args.crowdsec_timeout),
     );
-    let vyos_api = VyosClient::new(args.vyos_api.clone(), args.vyos_apikey.clone());
+    let vyos_ca_cert = args
+        .vyos_ca_cert
+        .as_deref()
+        .map(read_file)
+        .transpose()?
+        .map(|pem| Certificate::from_pem(&pem))
+        .transpose()?;
+    let vyos_api = VyosClient::new(
+        args.vyos_api.clone(),
+        args.vyos_apikey.clone(),
+        vyos_ca_cert,
+    );
     let config = Config {
         firewall_group: args.firewall_group,
         trusted_ips: args.trusted_ips.map(From::from).unwrap_or_default(),

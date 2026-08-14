@@ -2,9 +2,9 @@ use std::time::Duration;
 
 use ipnet::IpNet;
 use reqwest::multipart::Form;
-use reqwest::{Client, StatusCode, Url};
+use reqwest::{Certificate, Client, StatusCode, Url};
 use serde::{de::DeserializeOwned, Serialize};
-use tracing::instrument;
+use tracing::{instrument, warn};
 
 use crate::metrics::OUTGOING_REQUESTS_COUNTER;
 use crate::USER_AGENT;
@@ -21,15 +21,22 @@ pub struct VyosClient {
 }
 
 impl VyosClient {
-    pub fn new(host: Url, apikey: String) -> Self {
-        let client = Client::builder()
+    pub fn new(host: Url, apikey: String, ca_cert: Option<Certificate>) -> Self {
+        let builder = Client::builder()
             .timeout(Duration::from_secs(30))
             .connect_timeout(Duration::from_secs(5))
-            .danger_accept_invalid_certs(true)
             .use_rustls_tls()
-            .user_agent(USER_AGENT)
-            .build()
-            .expect("failed to build client");
+            .user_agent(USER_AGENT);
+        let builder = match ca_cert {
+            Some(cert) => builder.add_root_certificate(cert),
+            None => {
+                warn!(
+                    "No VYOS_CA_CERT configured, disabling TLS certificate verification for the VyOS API"
+                );
+                builder.danger_accept_invalid_certs(true)
+            }
+        };
+        let client = builder.build().expect("failed to build client");
         Self {
             client,
             host,

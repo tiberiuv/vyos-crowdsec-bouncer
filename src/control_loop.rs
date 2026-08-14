@@ -98,7 +98,7 @@ mod tests {
 
     fn vyos_client(apikey: String, mock: &Server) -> VyosClient {
         let url = format!("http://{}", mock.host_with_port());
-        VyosClient::new(url.parse().unwrap(), apikey)
+        VyosClient::new(url.parse().unwrap(), apikey, None)
     }
 
     fn mock_decision(value: &str) -> Decision {

@@ -15,8 +15,9 @@ pub fn read_file(path: &Path) -> Result<Vec<u8>, io::Error> {
 }
 
 fn exponential_backoff(retries: u64, cap: u64) -> Duration {
-    let jitter = random::<u64>() * 5;
-    Duration::from_millis(u64::min(cap, ((2 ^ retries) * 25) + jitter))
+    let jitter = random::<u64>() % 5;
+    let backoff = 2u64.saturating_pow(retries as u32).saturating_mul(25);
+    Duration::from_millis(u64::min(cap, backoff.saturating_add(jitter)))
 }
 
 pub async fn retry_op<Fut, T, E, F>(retries: u64, f: F) -> Result<T, E>

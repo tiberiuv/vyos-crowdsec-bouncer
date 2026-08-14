@@ -22,6 +22,11 @@ pub struct Cli {
     #[arg(long, env = "VYOS_API")]
     pub vyos_api: Url,
 
+    /// Path to a PEM-encoded CA certificate used to verify the VyOS API's TLS certificate.
+    /// If unset, TLS certificate verification for the VyOS API is disabled.
+    #[arg(long, env = "VYOS_CA_CERT")]
+    pub vyos_ca_cert: Option<PathBuf>,
+
     #[arg(long, env = "CROWDSEC_TIMEOUT", default_value = "10")]
     pub crowdsec_timeout: u64,
 
