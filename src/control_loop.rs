@@ -166,7 +166,7 @@ mod tests {
         let lapi_stream = test_app
             .lapi_mock
             .mock("GET", "/v1/decisions/stream?startup=true")
-            .match_header("apikey", apikey)
+            .match_header("x-api-key", apikey)
             .with_body(serde_json::to_vec(&initial_decisions).expect("valid json"))
             .with_status(200)
             .create();
@@ -217,7 +217,7 @@ mod tests {
         let lapi_stream = test_app
             .lapi_mock
             .mock("GET", "/v1/decisions/stream?startup=false")
-            .match_header("apikey", apikey)
+            .match_header("x-api-key", apikey)
             .with_body(serde_json::to_vec(&next_decisions).expect("valid json"))
             .with_status(200)
             .create();
@@ -254,7 +254,7 @@ mod tests {
         let lapi_stream = test_app
             .lapi_mock
             .mock("GET", "/v1/decisions/stream?startup=true")
-            .match_header("apikey", apikey)
+            .match_header("x-api-key", apikey)
             .with_body(serde_json::to_vec(&initial_decisions).expect("valid json"))
             .with_status(200)
             .create();
@@ -304,7 +304,7 @@ mod tests {
         let lapi_stream = test_app
             .lapi_mock
             .mock("GET", "/v1/decisions/stream?startup=false")
-            .match_header("apikey", apikey)
+            .match_header("x-api-key", apikey)
             .with_body(serde_json::to_vec(&initial_decisions).expect("valid json"))
             .with_status(200)
             .create();

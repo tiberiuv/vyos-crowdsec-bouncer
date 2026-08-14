@@ -28,7 +28,7 @@ impl CrowdsecLapiClient {
             CrowdsecAuth::Apikey(apikey) => {
                 let mut headers_map = HeaderMap::new();
                 headers_map.insert(
-                    "apikey",
+                    "x-api-key",
                     HeaderValue::from_str(&apikey).expect("invalid key"),
                 );
 
